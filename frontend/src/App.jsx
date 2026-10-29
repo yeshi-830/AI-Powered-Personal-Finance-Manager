@@ -1,0 +1,451 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  LayoutDashboard, ArrowLeftRight, Wallet, Target, Settings,
+  Bell, Search, Plus, ArrowUpRight, ArrowDownRight,
+  CreditCard, PiggyBank, TrendingUp, Menu, X, ChevronDown,
+  Utensils, Car, ShoppingBag, Briefcase, HeartPulse,
+  Pencil, Trash2, Download, Sparkles
+} from "lucide-react";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer
+} from "recharts";
+import "./App.css";
+
+const categories = ["Food & Dining", "Transportation", "Shopping", "Healthcare", "Other"];
+const categoryIcons = {
+  "Food & Dining": Utensils,
+  Transportation: Car,
+  Shopping: ShoppingBag,
+  Healthcare: HeartPulse,
+  Income: Briefcase,
+  Other: Wallet,
+};
+
+const money = (value) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(value);
+
+function todayISO() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function displayDate(value) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short", day: "2-digit", year: "numeric"
+  });
+}
+
+async function request(path, options) {
+  const response = await fetch(path, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...options?.headers },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Request failed (${response.status}).`);
+  }
+  return response.status === 204 ? null : response.json();
+}
+
+function App() {
+  const [transactions, setTransactions] = useState([]);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [activeNav, setActiveNav] = useState("Overview");
+  const [period, setPeriod] = useState("week");
+  const [search, setSearch] = useState("");
+  const [modal, setModal] = useState(null);
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [transactionForm, setTransactionForm] = useState({
+    name: "", category: categories[0], amount: "", type: "expense", date: todayISO()
+  });
+  const [budgetForm, setBudgetForm] = useState({ category: categories[0], limit: "" });
+
+  const refreshData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [nextTransactions, nextDashboard] = await Promise.all([
+        request("/api/transactions"),
+        request(`/api/dashboard?period=${period}`),
+      ]);
+      setTransactions(nextTransactions);
+      setDashboardData(nextDashboard);
+      setError("");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [period]);
+
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
+
+  const filteredTransactions = useMemo(() => transactions.filter((item) =>
+    `${item.name} ${item.category} ${item.type}`.toLowerCase().includes(search.toLowerCase())
+  ), [transactions, search]);
+
+  const budgets = dashboardData?.budgets ?? [];
+  const periodData = dashboardData?.period;
+  const totalBudget = budgets.reduce((sum, budget) => sum + budget.limit, 0);
+  const totalBudgetSpent = budgets.reduce((sum, budget) => sum + budget.spent, 0);
+  const budgetPercent = totalBudget > 0 ? Math.min(100, totalBudgetSpent / totalBudget * 100) : 0;
+
+  function openTransaction(transaction = null) {
+    setError("");
+    setTransactionForm(transaction ? {
+      name: transaction.name,
+      category: transaction.category === "Income" ? categories[0] : transaction.category,
+      amount: String(transaction.amount),
+      type: transaction.type,
+      date: transaction.date,
+    } : {
+      name: "", category: categories[0], amount: "", type: "expense", date: todayISO()
+    });
+    setModal({ type: "transaction", transactionId: transaction?.id ?? null });
+  }
+
+  function openBudget(budget = null) {
+    setError("");
+    setBudgetForm({
+      category: budget?.category ?? categories[0],
+      limit: budget ? String(budget.limit) : "",
+    });
+    setModal({ type: "budget" });
+  }
+
+  async function submitTransaction(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    const transaction = {
+      ...transactionForm,
+      category: transactionForm.type === "income" ? "Income" : transactionForm.category,
+      amount: Number(transactionForm.amount),
+    };
+    try {
+      await request(
+        modal.transactionId ? `/api/transactions/${modal.transactionId}` : "/api/transactions",
+        { method: modal.transactionId ? "PUT" : "POST", body: JSON.stringify(transaction) }
+      );
+      setModal(null);
+      setNotice(modal.transactionId ? "Transaction updated." : "Transaction saved.");
+      await refreshData();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitBudget(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await request(`/api/budgets/${encodeURIComponent(budgetForm.category)}`, {
+        method: "PUT",
+        body: JSON.stringify({ limit: Number(budgetForm.limit) }),
+      });
+      setModal(null);
+      setNotice(`${budgetForm.category} budget saved.`);
+      await refreshData();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteTransaction(transaction) {
+    if (!window.confirm(`Delete "${transaction.name}"? This cannot be undone.`)) return;
+    try {
+      await request(`/api/transactions/${transaction.id}`, { method: "DELETE" });
+      setNotice("Transaction deleted.");
+      await refreshData();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function deleteBudget(budget) {
+    if (!window.confirm(`Remove the ${budget.category} budget?`)) return;
+    try {
+      await request(`/api/budgets/${encodeURIComponent(budget.category)}`, { method: "DELETE" });
+      setNotice(`${budget.category} budget removed.`);
+      await refreshData();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  function exportTransactions() {
+    const rows = [
+      ["Date", "Name", "Category", "Type", "Amount"],
+      ...filteredTransactions.map((transaction) => [
+        transaction.date, transaction.name, transaction.category, transaction.type, transaction.amount.toFixed(2)
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((value) =>
+      `"${String(value).replaceAll('"', '""')}"`
+    ).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "finora-transactions.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const navItems = [
+    { label: "Overview", icon: LayoutDashboard },
+    { label: "Transactions", icon: ArrowLeftRight },
+    { label: "Budgets", icon: Wallet },
+    { label: "Savings goals", icon: Target },
+  ];
+
+  return (
+    <div className="app-shell">
+      <aside className={`sidebar ${mobileMenu ? "sidebar-open" : ""}`}>
+        <div className="brand">
+          <div className="brand-mark"><Wallet size={23} /></div>
+          <span>Finora<span className="brand-dot">.</span></span>
+          <button className="icon-button close-menu" onClick={() => setMobileMenu(false)} aria-label="Close menu"><X /></button>
+        </div>
+
+        <div className="workspace-label">WORKSPACE</div>
+        <nav className="navigation">
+          {navItems.map(({ label, icon: Icon }) => (
+            <button
+              key={label}
+              className={`nav-link ${activeNav === label ? "active" : ""}`}
+              onClick={() => { setActiveNav(label); setMobileMenu(false); }}
+            >
+              <Icon size={19} />
+              <span>{label}</span>
+              {label === "Transactions" && <span className="nav-count">{transactions.length}</span>}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-promo">
+          <div className="promo-icon"><Sparkles size={19} /></div>
+          <h3>Make money<br />work for you.</h3>
+          <p>Set budgets and track where your money goes.</p>
+          <button onClick={() => setActiveNav("Budgets")}>
+            Review budgets <ArrowUpRight size={15} />
+          </button>
+        </div>
+
+        <div className="sidebar-bottom">
+          <button className="nav-link" onClick={() => setNotice("Your data is stored locally in the app database.")}>
+            <Settings size={19} /><span>Settings</span>
+          </button>
+          <div className="profile">
+            <div className="avatar">MY</div>
+            <div className="profile-info"><strong>Your account</strong><span>Personal plan</span></div>
+          </div>
+        </div>
+      </aside>
+
+      {mobileMenu && <button className="mobile-overlay" aria-label="Close navigation" onClick={() => setMobileMenu(false)} />}
+
+      <main className="main-content">
+        <header className="topbar">
+          <button className="icon-button mobile-menu-button" onClick={() => setMobileMenu(true)} aria-label="Open menu"><Menu /></button>
+          <div className="breadcrumb">Workspace <span>/</span> <strong>{activeNav}</strong></div>
+          <div className="topbar-actions">
+            <label className="search-box">
+              <Search size={17} />
+              <input aria-label="Search transactions" placeholder="Search transactions..." value={search} onChange={(event) => { setSearch(event.target.value); setActiveNav("Transactions"); }} />
+            </label>
+            <button className="icon-button notification-button" aria-label="Notifications" onClick={() => setNotice("You're all caught up!")}>
+              <Bell size={19} />
+            </button>
+            <div className="top-avatar">MY</div>
+          </div>
+        </header>
+
+        <div className="dashboard">
+          {(error || notice) && (
+            <div className={`notice ${error ? "notice-error" : ""}`} role={error ? "alert" : "status"}>
+              <span>{error || notice}</span>
+              <div className="notice-actions">
+                {error && <button onClick={refreshData}>Retry</button>}
+                <button onClick={() => { setNotice(""); setError(""); }} aria-label="Dismiss notification"><X size={15} /></button>
+              </div>
+            </div>
+          )}
+
+          <section className="welcome-row">
+            <div>
+              <div className="eyebrow"><span className="live-dot" /> YOUR FINANCIAL OVERVIEW</div>
+              <h1>{activeNav === "Overview" ? "Good morning" : activeNav}<span className="heading-period">.</span></h1>
+              <p className="subtitle">{activeNav === "Overview" ? "Here's what's happening with your money." : `Manage and review your ${activeNav.toLowerCase()}.`}</p>
+            </div>
+            <div className="welcome-actions">
+              <button className="button-secondary" onClick={exportTransactions}><Download size={16} /> Export CSV</button>
+              <button className="button-primary" onClick={() => openTransaction()}><Plus size={18} /> Add transaction</button>
+            </div>
+          </section>
+
+          <section className="stat-grid">
+            <article className="stat-card balance-card">
+              <div className="stat-top"><span>Total balance</span><div className="stat-icon violet"><Wallet size={19} /></div></div>
+              <div className="stat-value">{loading ? "—" : money(dashboardData?.balance ?? 0)}</div>
+              <div className="stat-footer"><span>Lifetime net</span><span>All transactions</span></div>
+              <div className="balance-decoration" />
+            </article>
+            <article className="stat-card">
+              <div className="stat-top"><span>Income</span><div className="stat-icon green"><ArrowDownRight size={19} /></div></div>
+              <div className="stat-value">{loading ? "—" : money(periodData?.income ?? 0)}</div>
+              <div className="stat-footer"><span className="trend positive"><ArrowUpRight size={15} /> Recorded</span><span>This {period === "week" ? "week" : "month"}</span></div>
+            </article>
+            <article className="stat-card">
+              <div className="stat-top"><span>Expenses</span><div className="stat-icon orange"><CreditCard size={19} /></div></div>
+              <div className="stat-value">{loading ? "—" : money(periodData?.expenses ?? 0)}</div>
+              <div className="stat-footer"><span className="trend negative"><ArrowUpRight size={15} /> Recorded</span><span>This {period === "week" ? "week" : "month"}</span></div>
+            </article>
+            <article className="stat-card">
+              <div className="stat-top"><span>Net savings</span><div className="stat-icon blue"><PiggyBank size={19} /></div></div>
+              <div className="stat-value">{loading ? "—" : money(periodData?.savings ?? 0)}</div>
+              <div className="stat-footer"><span className="trend positive"><TrendingUp size={15} /> Income less expenses</span><span>This {period === "week" ? "week" : "month"}</span></div>
+            </article>
+          </section>
+
+          <section className="middle-grid">
+            <article className="panel chart-panel">
+              <div className="panel-heading">
+                <div><h2>Cash flow</h2><p>Track your income and expenses</p></div>
+                <button className="select-button" onClick={() => setPeriod(period === "week" ? "month" : "week")}>{period === "week" ? "This week" : "This month"}<ChevronDown size={15} /></button>
+              </div>
+              <div className="chart-legend">
+                <span><i className="legend-dot income-dot" /> Income <strong>{money(periodData?.income ?? 0)}</strong></span>
+                <span><i className="legend-dot expense-dot" /> Expenses <strong>{money(periodData?.expenses ?? 0)}</strong></span>
+              </div>
+              <div className="chart-wrap">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={dashboardData?.cashflow ?? []} margin={{ top: 12, right: 8, left: -16, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#8170f5" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="#8170f5" stopOpacity={0.01} />
+                      </linearGradient>
+                      <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#39b99a" stopOpacity={0.15} />
+                        <stop offset="100%" stopColor="#39b99a" stopOpacity={0.01} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="#edf0f5" strokeDasharray="4 5" vertical={false} />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#9298a8", fontSize: 12 }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9298a8", fontSize: 11 }} tickFormatter={(value) => `$${value}`} />
+                    <Tooltip formatter={(value) => money(value)} contentStyle={{ borderRadius: 12, border: "1px solid #ececf4", fontSize: 12 }} />
+                    <Area type="monotone" dataKey="income" name="Income" stroke="#8170f5" strokeWidth={2.5} fill="url(#incomeGradient)" />
+                    <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#39b99a" strokeWidth={2.5} fill="url(#expenseGradient)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </article>
+
+            <article className="panel budget-panel">
+              <div className="panel-heading">
+                <div><h2>Budget overview</h2><p>Your monthly spending limits</p></div>
+                <button className="text-action" onClick={() => openBudget()}><Plus size={15} /> Set budget</button>
+              </div>
+              <div className="budget-total">
+                <div><span>Monthly budget</span><strong>{money(totalBudgetSpent)} <small>of {money(totalBudget)}</small></strong></div>
+                <div className="budget-percent">{Math.round(budgetPercent)}%</div>
+              </div>
+              <div className="overall-progress"><span style={{ width: `${budgetPercent}%` }} /></div>
+              <div className="budget-list">
+                {budgets.length ? budgets.map((budget, index) => {
+                  const Icon = categoryIcons[budget.category] ?? Wallet;
+                  const percentage = Math.min(100, budget.spent / budget.limit * 100);
+                  return (
+                    <div className="budget-item" key={budget.category}>
+                      <div className="budget-line">
+                        <span><Icon size={14} /> {budget.category}</span>
+                        <span><strong>{money(budget.spent)}</strong><small> / {money(budget.limit)}</small></span>
+                      </div>
+                      <div className="budget-progress"><span className={["purple", "blue", "orange", "green"][index % 4]} style={{ width: `${percentage}%` }} /></div>
+                      <div className="budget-actions">
+                        <button onClick={() => openBudget(budget)} aria-label={`Edit ${budget.category} budget`}><Pencil size={13} /> Edit</button>
+                        <button onClick={() => deleteBudget(budget)} aria-label={`Remove ${budget.category} budget`}><Trash2 size={13} /> Remove</button>
+                      </div>
+                    </div>
+                  );
+                }) : <p className="budget-empty">No budgets yet. Set a monthly limit to keep spending on track.</p>}
+              </div>
+              {budgets.length > 0 && <div className="budget-tip"><Sparkles size={16} /><span>{totalBudgetSpent > totalBudget ? <><strong>Over budget</strong> — Spending is above your monthly limits.</> : <><strong>Budget check-in</strong> — {money(Math.max(0, totalBudget - totalBudgetSpent))} remaining across your budgets.</>}</span></div>}
+            </article>
+          </section>
+
+          <section className="panel transactions-panel">
+            <div className="panel-heading transactions-heading">
+              <div><h2>Transactions</h2><p>Your latest financial activity</p></div>
+              <button className="text-action" onClick={() => openTransaction()}><Plus size={15} /> Add new</button>
+            </div>
+            <div className="table-scroll">
+              <table>
+                <thead><tr><th>TRANSACTION</th><th>CATEGORY</th><th>DATE</th><th>AMOUNT</th><th /></tr></thead>
+                <tbody>
+                  {loading ? <tr><td colSpan="5" className="empty-state">Loading your transactions…</td></tr>
+                    : filteredTransactions.length ? filteredTransactions.slice(0, activeNav === "Transactions" ? undefined : 6).map((item) => {
+                      const Icon = categoryIcons[item.category] ?? Wallet;
+                      return <tr key={item.id}>
+                        <td><div className="transaction-name"><div className={`transaction-icon ${item.type}`}><Icon size={17} /></div><strong>{item.name}</strong></div></td>
+                        <td><span className="category-pill">{item.category}</span></td>
+                        <td className="date-cell">{displayDate(item.date)}</td>
+                        <td className={`amount-cell ${item.type}`}>{item.type === "income" ? "+" : "−"}{money(item.amount)}</td>
+                        <td><div className="row-actions">
+                          <button className="row-menu" aria-label={`Edit ${item.name}`} onClick={() => openTransaction(item)}><Pencil size={16} /></button>
+                          <button className="row-menu danger" aria-label={`Delete ${item.name}`} onClick={() => deleteTransaction(item)}><Trash2 size={16} /></button>
+                        </div></td>
+                      </tr>;
+                    }) : <tr><td colSpan="5" className="empty-state">{search ? "No transactions match your search." : "No transactions yet. Add one to start tracking your finances."}</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <div className="table-footer"><span>Showing {Math.min(filteredTransactions.length, activeNav === "Transactions" ? filteredTransactions.length : 6)} of {filteredTransactions.length} transactions</span><button className="button-secondary small-button" onClick={() => openTransaction()}><Plus size={15} /> Add new</button></div>
+          </section>
+
+          <footer className="footer"><span>© 2026 Finora Finance</span><span><span className="footer-dot" /> Your money, in perspective.</span></footer>
+        </div>
+      </main>
+
+      {modal && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setModal(null); }}>
+        {modal.type === "transaction" ? (
+          <form className="transaction-modal" onSubmit={submitTransaction}>
+            <div className="modal-heading"><div><h2>{modal.transactionId ? "Edit transaction" : "Add transaction"}</h2><p>Keep your financial records up to date.</p></div><button type="button" className="icon-button" onClick={() => setModal(null)} aria-label="Close"><X /></button></div>
+            {error && <div className="form-error" role="alert">{error}</div>}
+            <label>Transaction name<input autoFocus required maxLength={80} placeholder="e.g. Grocery shopping" value={transactionForm.name} onChange={(event) => setTransactionForm({ ...transactionForm, name: event.target.value })} /></label>
+            <label>Amount (USD)<input required type="number" min="0.01" step="0.01" placeholder="0.00" value={transactionForm.amount} onChange={(event) => setTransactionForm({ ...transactionForm, amount: event.target.value })} /></label>
+            <label>Transaction type<select value={transactionForm.type} onChange={(event) => setTransactionForm({ ...transactionForm, type: event.target.value })}><option value="expense">Expense</option><option value="income">Income</option></select></label>
+            {transactionForm.type === "expense" && <label>Category<select value={transactionForm.category} onChange={(event) => setTransactionForm({ ...transactionForm, category: event.target.value })}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>}
+            <label>Date<input required type="date" value={transactionForm.date} onChange={(event) => setTransactionForm({ ...transactionForm, date: event.target.value })} /></label>
+            <div className="modal-actions"><button type="button" className="button-secondary" onClick={() => setModal(null)} disabled={saving}>Cancel</button><button type="submit" className="button-primary" disabled={saving}>{saving ? "Saving…" : <><Plus size={16} /> Save transaction</>}</button></div>
+          </form>
+        ) : (
+          <form className="transaction-modal" onSubmit={submitBudget}>
+            <div className="modal-heading"><div><h2>Monthly budget</h2><p>Set a spending limit for a category.</p></div><button type="button" className="icon-button" onClick={() => setModal(null)} aria-label="Close"><X /></button></div>
+            {error && <div className="form-error" role="alert">{error}</div>}
+            <label>Category<select value={budgetForm.category} onChange={(event) => setBudgetForm({ ...budgetForm, category: event.target.value })}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>
+            <label>Monthly limit (USD)<input autoFocus required type="number" min="0.01" step="0.01" placeholder="0.00" value={budgetForm.limit} onChange={(event) => setBudgetForm({ ...budgetForm, limit: event.target.value })} /></label>
+            <div className="modal-actions"><button type="button" className="button-secondary" onClick={() => setModal(null)} disabled={saving}>Cancel</button><button type="submit" className="button-primary" disabled={saving}>{saving ? "Saving…" : "Save budget"}</button></div>
+          </form>
+        )}
+      </div>}
+    </div>
+  );
+}
+
+export default App;
