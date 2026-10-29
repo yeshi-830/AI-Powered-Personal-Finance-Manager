@@ -1,7 +1,9 @@
 const express = require("express");
+const cors = require("cors");
 const { DatabaseSync } = require("node:sqlite");
 const fs = require("node:fs");
 const path = require("node:path");
+require("dotenv").config();
 
 const categories = ["Food & Dining", "Transportation", "Shopping", "Healthcare", "Other"];
 const allowedTypes = ["income", "expense"];
@@ -49,7 +51,9 @@ function validDate(value) {
 
 function parseAmount(value) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
-  const cents = Math.round(value * 100);
+  const rawCents = value * 100;
+  const cents = Math.round(rawCents);
+  if (Math.abs(rawCents - cents) > 1e-7) return null;
   return Number.isSafeInteger(cents) ? cents : null;
 }
 
@@ -117,6 +121,8 @@ function budgetRows(database, monthStart, monthEnd) {
 
 function createApp(database) {
   const app = express();
+  const allowedOrigins = (process.env.FRONTEND_ORIGIN || "http://localhost:5173").split(",");
+  app.use(cors({ origin: allowedOrigins }));
   app.use(express.json({ limit: "20kb" }));
 
   app.get("/api/health", (_request, response) => {
@@ -313,7 +319,7 @@ function createApp(database) {
 }
 
 if (require.main === module) {
-  const database = createDatabase();
+  const database = createDatabase(process.env.DB_PATH || path.join(__dirname, "..", "data", "finora.sqlite"));
   const app = createApp(database);
   const port = Number(process.env.PORT || 4000);
   const host = process.env.HOST || "127.0.0.1";

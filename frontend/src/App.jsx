@@ -52,6 +52,14 @@ async function request(path, options) {
   return response.status === 204 ? null : response.json();
 }
 
+async function fetchAppData(period) {
+  const [transactions, dashboard] = await Promise.all([
+    request("/api/transactions"),
+    request(`/api/dashboard?period=${period}`),
+  ]);
+  return { transactions, dashboard };
+}
+
 function App() {
   const [transactions, setTransactions] = useState([]);
   const [dashboardData, setDashboardData] = useState(null);
@@ -70,12 +78,8 @@ function App() {
   const [budgetForm, setBudgetForm] = useState({ category: categories[0], limit: "" });
 
   const refreshData = useCallback(async () => {
-    setLoading(true);
     try {
-      const [nextTransactions, nextDashboard] = await Promise.all([
-        request("/api/transactions"),
-        request(`/api/dashboard?period=${period}`),
-      ]);
+      const { transactions: nextTransactions, dashboard: nextDashboard } = await fetchAppData(period);
       setTransactions(nextTransactions);
       setDashboardData(nextDashboard);
       setError("");
@@ -87,8 +91,19 @@ function App() {
   }, [period]);
 
   useEffect(() => {
-    refreshData();
-  }, [refreshData]);
+    let cancelled = false;
+    fetchAppData(period).then(({ transactions: nextTransactions, dashboard: nextDashboard }) => {
+      if (cancelled) return;
+      setTransactions(nextTransactions);
+      setDashboardData(nextDashboard);
+      setError("");
+    }).catch((requestError) => {
+      if (!cancelled) setError(requestError.message);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [period]);
 
   const filteredTransactions = useMemo(() => transactions.filter((item) =>
     `${item.name} ${item.category} ${item.type}`.toLowerCase().includes(search.toLowerCase())
@@ -112,6 +127,16 @@ function App() {
       name: "", category: categories[0], amount: "", type: "expense", date: todayISO()
     });
     setModal({ type: "transaction", transactionId: transaction?.id ?? null });
+  }
+
+  function changePeriod() {
+    setLoading(true);
+    setPeriod(period === "week" ? "month" : "week");
+  }
+
+  function retryLoad() {
+    setLoading(true);
+    refreshData();
   }
 
   function openBudget(budget = null) {
@@ -280,7 +305,7 @@ function App() {
             <div className={`notice ${error ? "notice-error" : ""}`} role={error ? "alert" : "status"}>
               <span>{error || notice}</span>
               <div className="notice-actions">
-                {error && <button onClick={refreshData}>Retry</button>}
+                {error && <button onClick={retryLoad}>Retry</button>}
                 <button onClick={() => { setNotice(""); setError(""); }} aria-label="Dismiss notification"><X size={15} /></button>
               </div>
             </div>
@@ -326,7 +351,7 @@ function App() {
             <article className="panel chart-panel">
               <div className="panel-heading">
                 <div><h2>Cash flow</h2><p>Track your income and expenses</p></div>
-                <button className="select-button" onClick={() => setPeriod(period === "week" ? "month" : "week")}>{period === "week" ? "This week" : "This month"}<ChevronDown size={15} /></button>
+                <button className="select-button" onClick={changePeriod}>{period === "week" ? "This week" : "This month"}<ChevronDown size={15} /></button>
               </div>
               <div className="chart-legend">
                 <span><i className="legend-dot income-dot" /> Income <strong>{money(periodData?.income ?? 0)}</strong></span>
@@ -399,7 +424,7 @@ function App() {
                 <thead><tr><th>TRANSACTION</th><th>CATEGORY</th><th>DATE</th><th>AMOUNT</th><th /></tr></thead>
                 <tbody>
                   {loading ? <tr><td colSpan="5" className="empty-state">Loading your transactions…</td></tr>
-                    : filteredTransactions.length ? filteredTransactions.slice(0, activeNav === "Transactions" ? undefined : 6).map((item) => {
+                    : filteredTransactions.length ? filteredTransactions.slice(0, activeNav === "Transactions" ? filteredTransactions.length : 6).map((item) => {
                       const Icon = categoryIcons[item.category] ?? Wallet;
                       return <tr key={item.id}>
                         <td><div className="transaction-name"><div className={`transaction-icon ${item.type}`}><Icon size={17} /></div><strong>{item.name}</strong></div></td>
