@@ -1,6 +1,15 @@
 # Finora
 
-Finora is a local-first personal finance manager. It stores transactions and monthly budgets in a SQLite database on your computer, then calculates balances, cash flow, and budget progress from those saved records.
+Finora is a local-first personal finance manager for tracking transactions, monthly budgets, and savings goals. It stores financial records in a SQLite database on your computer and calculates balances, cash flow, and budget progress from that data.
+
+## Features
+
+- Record, edit, search, and delete income and expense transactions
+- Export transactions as CSV
+- Create and manage monthly category budgets
+- Set savings goals, track progress, and record contributions
+- Review your lifetime balance, weekly or monthly totals, and daily cash flow
+- Keep data in a local SQLite database between app restarts
 
 ## Requirements
 
@@ -9,7 +18,9 @@ Finora is a local-first personal finance manager. It stores transactions and mon
 
 ## Run locally
 
-Open two terminals from the project root:
+Install dependencies and start the backend and frontend in separate terminals from the project root.
+
+**Terminal 1 — backend**
 
 ```powershell
 cd backend
@@ -17,48 +28,71 @@ npm install
 npm run dev
 ```
 
+**Terminal 2 — frontend**
+
 ```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-Open the Vite URL shown in the frontend terminal (normally `http://localhost:5173`). The Vite development server proxies `/api` requests to the backend at `http://127.0.0.1:4000`.
+Open the Vite URL shown in the frontend terminal (usually `http://localhost:5173`). During development, Vite forwards `/api` requests to the backend at `http://127.0.0.1:4000`.
 
-The backend creates `backend/data/finora.sqlite` automatically. This database is intentionally ignored by Git because it contains personal financial records. Backend settings can be supplied through environment variables or a `backend/.env` file: set `PORT` to change the API port, `HOST` to change its bind address, `DB_PATH` to choose another database file, and `FRONTEND_ORIGIN` to configure allowed browser origins (comma-separated). The API binds to `127.0.0.1` by default.
+The backend creates `backend/data/finora.sqlite` on first run. This database is excluded from Git because it may contain personal financial records. Back it up regularly if you need to preserve your data.
 
-## Features
+## Configuration
 
-- Add, edit, delete, search, and CSV-export income and expense transactions
-- Set and manage monthly category budgets
-- Create savings goals with target amounts, saved progress, and optional target dates
-- View lifetime balance, week/month totals, daily cash flow, and budget progress
-- Persist data across restarts in SQLite
+Backend settings can be provided through environment variables or a `backend/.env` file.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PORT` | `4000` | Port used by the API server |
+| `HOST` | `0.0.0.0` | Network interface used by the API server |
+| `DB_PATH` | `backend/data/finora.sqlite` | Path to the SQLite database |
+| `FRONTEND_ORIGIN` | `http://localhost:5173` | Comma-separated list of allowed browser origins |
+
+The default `HOST` makes the API listen on all network interfaces. For a local-only setup, set `HOST=127.0.0.1` in `backend/.env`.
 
 ## API
 
-- `GET /api/health`
-- `GET /api/transactions`
-- `POST`, `PUT /api/transactions/:id`, `DELETE /api/transactions/:id`
-- `GET /api/dashboard?period=week|month`
-- `GET /api/budgets`
-- `PUT`, `DELETE /api/budgets/:category`
-- `GET`, `POST /api/goals`
-- `PUT`, `DELETE /api/goals/:id`
+All routes are prefixed with `/api`.
 
-Savings goal requests use `name`, `targetAmount`, `savedAmount`, and an optional `targetDate` (`YYYY-MM-DD`). Amounts are in USD.
+| Method | Route | Description |
+| --- | --- | --- |
+| `GET` | `/health` | Check API availability |
+| `GET` | `/transactions` | List transactions |
+| `POST` | `/transactions` | Create a transaction |
+| `PUT` | `/transactions/:id` | Update a transaction |
+| `DELETE` | `/transactions/:id` | Delete a transaction |
+| `GET` | `/dashboard?period=week\|month` | Retrieve balances, period totals, cash flow, and budgets |
+| `GET` | `/budgets` | List monthly budgets |
+| `PUT` | `/budgets/:category` | Create or update a category budget |
+| `DELETE` | `/budgets/:category` | Delete a category budget |
+| `GET` | `/goals` | List savings goals |
+| `POST` | `/goals` | Create a savings goal |
+| `PUT` | `/goals/:id` | Update a savings goal |
+| `DELETE` | `/goals/:id` | Delete a savings goal |
+| `POST` | `/goals/:id/contributions` | Add to a savings goal |
 
-The app is currently a single-user local application and does not include sign-in or cloud synchronization. Keep a backup of `backend/data/finora.sqlite` if you need to preserve your records.
+Transaction amounts, budget limits, savings targets, and contributions are in USD. Savings goals use `name`, `targetAmount`, and `savedAmount`, with an optional `targetDate` in `YYYY-MM-DD` format. Contribution requests contain an `amount`.
 
-## Verify
+## Verification
+
+Run the backend tests:
 
 ```powershell
 cd backend
 npm test
 ```
 
+Check and build the frontend:
+
 ```powershell
 cd frontend
 npm run lint
 npm run build
 ```
+
+## Data and account model
+
+Finora is currently a single-user local application. It does not provide sign-in or cloud synchronization. Financial records remain in the configured SQLite database; protect and back up that file as appropriate.

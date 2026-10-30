@@ -146,6 +146,21 @@ test("savings goal API validates, updates, lists, and deletes goals", async (t) 
   assert.equal(goal.targetAmount, 5000);
   assert.equal(goal.savedAmount, 0);
 
+  const invalidContribution = await fetch(`${baseUrl}/api/goals/${goal.id}/contributions`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ amount: 0 }),
+  });
+  assert.equal(invalidContribution.status, 400);
+
+  const contributionResponse = await fetch(`${baseUrl}/api/goals/${goal.id}/contributions`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ amount: 125.5 }),
+  });
+  assert.equal(contributionResponse.status, 200);
+  assert.equal((await contributionResponse.json()).savedAmount, 125.5);
+
   const updateResponse = await fetch(`${baseUrl}/api/goals/${goal.id}`, {
     method: "PUT",
     headers,
@@ -182,6 +197,12 @@ test("savings goal API validates, updates, lists, and deletes goals", async (t) 
     method: "DELETE",
   });
   assert.equal(missingResponse.status, 404);
+  const missingGoalContribution = await fetch(`${baseUrl}/api/goals/${goal.id}/contributions`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ amount: 1 }),
+  });
+  assert.equal(missingGoalContribution.status, 404);
 });
 
 test("database records remain available after reopening the SQLite file", (t) => {

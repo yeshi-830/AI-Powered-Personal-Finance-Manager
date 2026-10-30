@@ -300,6 +300,33 @@ function createApp(database) {
     response.status(201).json(goalRow(row));
   });
 
+  app.post("/api/goals/:id/contributions", (request, response) => {
+    const id = Number(request.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) {
+      return response.status(400).json({ error: "Goal ID must be a positive integer." });
+    }
+
+    const amountCents = parseAmount(request.body?.amount);
+    if (!amountCents) {
+      return response.status(400).json({ error: "Contribution must be a positive number with no more than two decimal places." });
+    }
+
+    const goal = database.prepare("SELECT saved_cents FROM savings_goals WHERE id = ?").get(id);
+    if (!goal) return response.status(404).json({ error: "Savings goal not found." });
+    if (!Number.isSafeInteger(goal.saved_cents + amountCents)) {
+      return response.status(400).json({ error: "Contribution exceeds the supported savings amount." });
+    }
+
+    database.prepare(`
+      UPDATE savings_goals SET saved_cents = saved_cents + ? WHERE id = ?
+    `).run(amountCents, id);
+    const row = database.prepare(`
+      SELECT id, name, target_cents, saved_cents, target_date
+      FROM savings_goals WHERE id = ?
+    `).get(id);
+    response.json(goalRow(row));
+  });
+
   app.put("/api/goals/:id", (request, response) => {
     const id = Number(request.params.id);
     if (!Number.isSafeInteger(id) || id < 1) {

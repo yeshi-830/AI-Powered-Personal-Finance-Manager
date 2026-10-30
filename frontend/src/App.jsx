@@ -88,6 +88,8 @@ function App() {
   const [activeNav, setActiveNav] = useState("Overview");
   const [period, setPeriod] = useState("week");
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [modal, setModal] = useState(null);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [notice, setNotice] = useState("");
@@ -114,6 +116,7 @@ function App() {
     savedAmount: "0",
     targetDate: "",
   });
+  const [contributionAmount, setContributionAmount] = useState("");
 
   const refreshData = useCallback(async () => {
     try {
@@ -164,8 +167,11 @@ function App() {
         `${item.name} ${item.category} ${item.type}`
           .toLowerCase()
           .includes(search.toLowerCase())
+      ).filter((item) =>
+        (categoryFilter === "all" || item.category === categoryFilter) &&
+        (typeFilter === "all" || item.type === typeFilter)
       ),
-    [transactions, search]
+    [transactions, search, categoryFilter, typeFilter]
   );
 
   const budgets = dashboardData?.budgets ?? [];
@@ -255,6 +261,12 @@ function App() {
           }
     );
     setModal({ type: "goal", goalId: goal?.id ?? null });
+  }
+
+  function openContribution(goal) {
+    setError("");
+    setContributionAmount("");
+    setModal({ type: "contribution", goalId: goal.id, goalName: goal.name });
   }
 
   async function submitTransaction(event) {
@@ -347,6 +359,27 @@ function App() {
 
       setModal(null);
       setNotice(modal.goalId ? "Savings goal updated." : "Savings goal created.");
+      await refreshData();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitContribution(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+
+    try {
+      await request(`/api/goals/${modal.goalId}/contributions`, {
+        method: "POST",
+        body: JSON.stringify({ amount: Number(contributionAmount) }),
+      });
+
+      setModal(null);
+      setNotice(`Contribution added to ${modal.goalName}.`);
       await refreshData();
     } catch (requestError) {
       setError(requestError.message);
@@ -1038,6 +1071,50 @@ function App() {
               </button>
             </div>
 
+            <div className="transaction-filters" aria-label="Filter transactions">
+              <label>
+                <span>Type</span>
+                <select
+                  aria-label="Filter by transaction type"
+                  value={typeFilter}
+                  onChange={(event) => setTypeFilter(event.target.value)}
+                >
+                  <option value="all">All activity</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expenses</option>
+                </select>
+              </label>
+              <label>
+                <span>Category</span>
+                <select
+                  aria-label="Filter by category"
+                  value={categoryFilter}
+                  onChange={(event) => setCategoryFilter(event.target.value)}
+                >
+                  <option value="all">All categories</option>
+                  <option value="Income">Income</option>
+                  {categories.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+              </label>
+              {(categoryFilter !== "all" || typeFilter !== "all" || search) && (
+                <button
+                  className="clear-filters"
+                  onClick={() => {
+                    setSearch("");
+                    setTypeFilter("all");
+                    setCategoryFilter("all");
+                  }}
+                >
+                  Clear filters
+                </button>
+              )}
+              <span className="filter-result-count">
+                {filteredTransactions.length} {filteredTransactions.length === 1 ? "result" : "results"}
+              </span>
+            </div>
+
             <div className="table-scroll">
               <table>
                 <thead>
@@ -1124,8 +1201,8 @@ function App() {
                   ) : (
                     <tr>
                       <td colSpan="5" className="empty-state">
-                        {search
-                          ? "No transactions match your search."
+                        {search || categoryFilter !== "all" || typeFilter !== "all"
+                          ? "No transactions match these filters."
                           : "No transactions yet. Add one to start tracking your finances."}
                       </td>
                     </tr>
@@ -1218,6 +1295,14 @@ function App() {
                           <strong>{money(goal.savedAmount)} saved</strong>
                           <span>{Math.round(progress)}%</span>
                         </div>
+                        {!completed && (
+                          <button
+                            className="goal-contribute-button"
+                            onClick={() => openContribution(goal)}
+                          >
+                            <Plus size={15} /> Add savings
+                          </button>
+                        )}
                       </article>
                     );
                   })}
@@ -1483,7 +1568,7 @@ function App() {
                 </button>
               </div>
             </form>
-          ) : (
+          ) : modal.type === "goal" ? (
             <form className="transaction-modal" onSubmit={submitGoal}>
               <div className="modal-heading">
                 <div>
@@ -1576,6 +1661,57 @@ function App() {
                   disabled={saving}
                 >
                   {saving ? "Saving…" : modal.goalId ? "Save changes" : "Create goal"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form className="transaction-modal" onSubmit={submitContribution}>
+              <div className="modal-heading">
+                <div>
+                  <h2>Add to your savings</h2>
+                  <p>Make progress on {modal.goalName}.</p>
+                </div>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => setModal(null)}
+                  aria-label="Close"
+                >
+                  <X />
+                </button>
+              </div>
+
+              {error && (
+                <div className="form-error" role="alert">
+                  {error}
+                </div>
+              )}
+
+              <label>
+                Contribution amount (USD)
+                <input
+                  autoFocus
+                  required
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={contributionAmount}
+                  onChange={(event) => setContributionAmount(event.target.value)}
+                />
+              </label>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => setModal(null)}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="button-primary" disabled={saving}>
+                  {saving ? "Adding…" : "Add contribution"}
                 </button>
               </div>
             </form>
