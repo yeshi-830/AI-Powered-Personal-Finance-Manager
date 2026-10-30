@@ -72,16 +72,18 @@ async function request(path, options) {
 }
 
 async function fetchAppData(period) {
-  const [transactions, dashboard] = await Promise.all([
+  const [transactions, dashboard, goals] = await Promise.all([
     request("/api/transactions"),
     request(`/api/dashboard?period=${period}`),
+    request("/api/goals"),
   ]);
 
-  return { transactions, dashboard };
+  return { transactions, dashboard, goals };
 }
 
 function App() {
   const [transactions, setTransactions] = useState([]);
+  const [goals, setGoals] = useState([]);
   const [dashboardData, setDashboardData] = useState(null);
   const [activeNav, setActiveNav] = useState("Overview");
   const [period, setPeriod] = useState("week");
@@ -106,15 +108,24 @@ function App() {
     limit: "",
   });
 
+  const [goalForm, setGoalForm] = useState({
+    name: "",
+    targetAmount: "",
+    savedAmount: "0",
+    targetDate: "",
+  });
+
   const refreshData = useCallback(async () => {
     try {
       const {
         transactions: nextTransactions,
         dashboard: nextDashboard,
+        goals: nextGoals,
       } = await fetchAppData(period);
 
       setTransactions(nextTransactions);
       setDashboardData(nextDashboard);
+      setGoals(nextGoals);
       setError("");
     } catch (requestError) {
       setError(requestError.message);
@@ -127,11 +138,12 @@ function App() {
     let cancelled = false;
 
     fetchAppData(period)
-      .then(({ transactions: nextTransactions, dashboard: nextDashboard }) => {
+      .then(({ transactions: nextTransactions, dashboard: nextDashboard, goals: nextGoals }) => {
         if (cancelled) return;
 
         setTransactions(nextTransactions);
         setDashboardData(nextDashboard);
+        setGoals(nextGoals);
         setError("");
       })
       .catch((requestError) => {
@@ -225,6 +237,26 @@ function App() {
     setModal({ type: "budget" });
   }
 
+  function openGoal(goal = null) {
+    setError("");
+    setGoalForm(
+      goal
+        ? {
+            name: goal.name,
+            targetAmount: String(goal.targetAmount),
+            savedAmount: String(goal.savedAmount),
+            targetDate: goal.targetDate ?? "",
+          }
+        : {
+            name: "",
+            targetAmount: "",
+            savedAmount: "0",
+            targetDate: "",
+          }
+    );
+    setModal({ type: "goal", goalId: goal?.id ?? null });
+  }
+
   async function submitTransaction(event) {
     event.preventDefault();
     setSaving(true);
@@ -293,6 +325,36 @@ function App() {
     }
   }
 
+  async function submitGoal(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+
+    const goal = {
+      ...goalForm,
+      targetAmount: Number(goalForm.targetAmount),
+      savedAmount: Number(goalForm.savedAmount),
+    };
+
+    try {
+      await request(
+        modal.goalId ? `/api/goals/${modal.goalId}` : "/api/goals",
+        {
+          method: modal.goalId ? "PUT" : "POST",
+          body: JSON.stringify(goal),
+        }
+      );
+
+      setModal(null);
+      setNotice(modal.goalId ? "Savings goal updated." : "Savings goal created.");
+      await refreshData();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function deleteTransaction(transaction) {
     if (
       !window.confirm(
@@ -330,6 +392,20 @@ function App() {
       );
 
       setNotice(`${budget.category} budget removed.`);
+      await refreshData();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function deleteGoal(goal) {
+    if (!window.confirm(`Delete the "${goal.name}" savings goal?`)) {
+      return;
+    }
+
+    try {
+      await request(`/api/goals/${goal.id}`, { method: "DELETE" });
+      setNotice("Savings goal deleted.");
       await refreshData();
     } catch (requestError) {
       setError(requestError.message);
@@ -563,23 +639,37 @@ function App() {
             </div>
 
             <div className="welcome-actions">
-              <button
-                className="button-secondary"
-                onClick={exportTransactions}
-              >
-                <Download size={16} /> Export CSV
-              </button>
+              {(activeNav === "Overview" || activeNav === "Transactions") && (
+                <>
+                  <button
+                    className="button-secondary"
+                    onClick={exportTransactions}
+                  >
+                    <Download size={16} /> Export CSV
+                  </button>
 
-              <button
-                className="button-primary"
-                onClick={() => openTransaction()}
-              >
-                <Plus size={18} /> Add transaction
-              </button>
+                  <button
+                    className="button-primary"
+                    onClick={() => openTransaction()}
+                  >
+                    <Plus size={18} /> Add transaction
+                  </button>
+                </>
+              )}
+              {activeNav === "Budgets" && (
+                <button className="button-primary" onClick={() => openBudget()}>
+                  <Plus size={18} /> Set budget
+                </button>
+              )}
+              {activeNav === "Savings goals" && (
+                <button className="button-primary" onClick={() => openGoal()}>
+                  <Plus size={18} /> Create a goal
+                </button>
+              )}
             </div>
           </section>
 
-          <section className="stat-grid">
+          {activeNav === "Overview" && <section className="stat-grid">
             <article className="stat-card balance-card">
               <div className="stat-top">
                 <span>Total balance</span>
@@ -673,10 +763,11 @@ function App() {
                 </span>
               </div>
             </article>
-          </section>
+          </section>}
 
-          <section className="middle-grid">
-            <article className="panel chart-panel">
+          {(activeNav === "Overview" || activeNav === "Budgets") && (
+          <section className={`middle-grid ${activeNav === "Budgets" ? "single-panel" : ""}`}>
+            {activeNav === "Overview" && <article className="panel chart-panel">
               <div className="panel-heading">
                 <div>
                   <h2>Cash flow</h2>
@@ -805,7 +896,7 @@ function App() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-            </article>
+            </article>}
 
             <article className="panel budget-panel">
               <div className="panel-heading">
@@ -930,12 +1021,13 @@ function App() {
               )}
             </article>
           </section>
+          )}
 
-          <section className="panel transactions-panel">
+          {(activeNav === "Overview" || activeNav === "Transactions") && <section className="panel transactions-panel">
             <div className="panel-heading transactions-heading">
               <div>
                 <h2>Transactions</h2>
-                <p>Your latest financial activity</p>
+                <p>{activeNav === "Transactions" ? "All of your financial activity" : "Your latest financial activity"}</p>
               </div>
 
               <button
@@ -1061,7 +1153,87 @@ function App() {
                 <Plus size={15} /> Add new
               </button>
             </div>
-          </section>
+          </section>}
+
+          {activeNav === "Savings goals" && (
+            <section className="goals-section" aria-label="Savings goals">
+              <div className="goals-summary">
+                <article className="panel goals-summary-card">
+                  <span>Active goals</span>
+                  <strong>{goals.length}</strong>
+                </article>
+                <article className="panel goals-summary-card">
+                  <span>Total saved</span>
+                  <strong>{money(goals.reduce((sum, goal) => sum + goal.savedAmount, 0))}</strong>
+                </article>
+                <article className="panel goals-summary-card">
+                  <span>Total target</span>
+                  <strong>{money(goals.reduce((sum, goal) => sum + goal.targetAmount, 0))}</strong>
+                </article>
+              </div>
+
+              {goals.length ? (
+                <div className="goal-grid">
+                  {goals.map((goal) => {
+                    const progress = Math.min(100, (goal.savedAmount / goal.targetAmount) * 100);
+                    const completed = goal.savedAmount >= goal.targetAmount;
+
+                    return (
+                      <article className="panel goal-card" key={goal.id}>
+                        <div className="goal-card-heading">
+                          <div className="goal-icon"><Target size={19} /></div>
+                          <div className="goal-actions">
+                            <button
+                              className="row-menu"
+                              aria-label={`Edit ${goal.name}`}
+                              onClick={() => openGoal(goal)}
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              className="row-menu danger"
+                              aria-label={`Delete ${goal.name}`}
+                              onClick={() => deleteGoal(goal)}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                        <h2>{goal.name}</h2>
+                        <p className="goal-target">
+                          {completed ? "Goal reached" : `${money(goal.targetAmount - goal.savedAmount)} to go`}
+                          {goal.targetDate && <span>Target date · {displayDate(goal.targetDate)}</span>}
+                        </p>
+                        <div
+                          className="goal-progress"
+                          role="progressbar"
+                          aria-label={`${goal.name} progress`}
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          aria-valuenow={Math.round(progress)}
+                        >
+                          <span style={{ width: `${progress}%` }} />
+                        </div>
+                        <div className="goal-amounts">
+                          <strong>{money(goal.savedAmount)} saved</strong>
+                          <span>{Math.round(progress)}%</span>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="panel goals-empty">
+                  <div className="goal-icon"><Target size={22} /></div>
+                  <h2>Start with a goal</h2>
+                  <p>Give your savings a purpose. Set a target, track your progress, and update it as you save.</p>
+                  <button className="button-primary" onClick={() => openGoal()}>
+                    <Plus size={16} /> Create your first goal
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
 
           <footer className="footer">
             <span>© 2026 Finora Finance</span>
@@ -1227,7 +1399,7 @@ function App() {
                 </button>
               </div>
             </form>
-          ) : (
+          ) : modal.type === "budget" ? (
             <form
               className="transaction-modal"
               onSubmit={submitBudget}
@@ -1308,6 +1480,102 @@ function App() {
                   disabled={saving}
                 >
                   {saving ? "Saving…" : "Save budget"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form className="transaction-modal" onSubmit={submitGoal}>
+              <div className="modal-heading">
+                <div>
+                  <h2>{modal.goalId ? "Edit savings goal" : "Create a savings goal"}</h2>
+                  <p>Choose a target and keep track of your progress.</p>
+                </div>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => setModal(null)}
+                  aria-label="Close"
+                >
+                  <X />
+                </button>
+              </div>
+
+              {error && (
+                <div className="form-error" role="alert">
+                  {error}
+                </div>
+              )}
+
+              <label>
+                Goal name
+                <input
+                  autoFocus
+                  required
+                  maxLength={80}
+                  placeholder="e.g. Emergency fund"
+                  value={goalForm.name}
+                  onChange={(event) =>
+                    setGoalForm({ ...goalForm, name: event.target.value })
+                  }
+                />
+              </label>
+
+              <label>
+                Target amount (USD)
+                <input
+                  required
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={goalForm.targetAmount}
+                  onChange={(event) =>
+                    setGoalForm({ ...goalForm, targetAmount: event.target.value })
+                  }
+                />
+              </label>
+
+              <label>
+                Amount saved (USD)
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={goalForm.savedAmount}
+                  onChange={(event) =>
+                    setGoalForm({ ...goalForm, savedAmount: event.target.value })
+                  }
+                />
+              </label>
+
+              <label>
+                Target date (optional)
+                <input
+                  type="date"
+                  value={goalForm.targetDate}
+                  onChange={(event) =>
+                    setGoalForm({ ...goalForm, targetDate: event.target.value })
+                  }
+                />
+              </label>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => setModal(null)}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="button-primary"
+                  disabled={saving}
+                >
+                  {saving ? "Saving…" : modal.goalId ? "Save changes" : "Create goal"}
                 </button>
               </div>
             </form>

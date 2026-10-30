@@ -32,6 +32,13 @@ function createDatabase(databasePath = path.join(__dirname, "..", "data", "finor
       monthly_limit_cents INTEGER NOT NULL CHECK (monthly_limit_cents > 0),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS savings_goals (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+      target_cents INTEGER NOT NULL CHECK (target_cents > 0),
+      saved_cents INTEGER NOT NULL CHECK (saved_cents >= 0),
+      target_date TEXT
+    );
   `);
   return database;
 }
@@ -55,6 +62,46 @@ function parseAmount(value) {
   const cents = Math.round(rawCents);
   if (Math.abs(rawCents - cents) > 1e-7) return null;
   return Number.isSafeInteger(cents) ? cents : null;
+}
+
+function parseNonNegativeAmount(value) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  const rawCents = value * 100;
+  const cents = Math.round(rawCents);
+  if (Math.abs(rawCents - cents) > 1e-7) return null;
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
+function validateGoal(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { error: "A savings goal object is required." };
+  }
+
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const targetCents = parseAmount(body.targetAmount);
+  const savedCents = parseNonNegativeAmount(body.savedAmount);
+  const targetDate = body.targetDate === "" || body.targetDate == null
+    ? null
+    : body.targetDate;
+
+  if (!name || name.length > 80) return { error: "Name must be between 1 and 80 characters." };
+  if (!targetCents) return { error: "Target amount must be a positive number with no more than two decimal places." };
+  if (savedCents === null) return { error: "Saved amount must be zero or a positive number with no more than two decimal places." };
+  if (targetDate !== null && !validDate(targetDate)) {
+    return { error: "Target date must be a valid YYYY-MM-DD date." };
+  }
+
+  return { value: { name, targetCents, savedCents, targetDate } };
+}
+
+function goalRow(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    targetAmount: row.target_cents / 100,
+    savedAmount: row.saved_cents / 100,
+    targetDate: row.target_date,
+  };
 }
 
 function validateTransaction(body) {
@@ -228,6 +275,65 @@ function createApp(database) {
     response.status(204).end();
   });
 
+  app.get("/api/goals", (_request, response) => {
+    const goals = database.prepare(`
+      SELECT id, name, target_cents, saved_cents, target_date
+      FROM savings_goals
+      ORDER BY target_date IS NULL, target_date, id
+    `).all();
+    response.json(goals.map(goalRow));
+  });
+
+  app.post("/api/goals", (request, response) => {
+    const result = validateGoal(request.body);
+    if (result.error) return response.status(400).json({ error: result.error });
+
+    const { name, targetCents, savedCents, targetDate } = result.value;
+    const inserted = database.prepare(`
+      INSERT INTO savings_goals (name, target_cents, saved_cents, target_date)
+      VALUES (?, ?, ?, ?)
+    `).run(name, targetCents, savedCents, targetDate);
+    const row = database.prepare(`
+      SELECT id, name, target_cents, saved_cents, target_date
+      FROM savings_goals WHERE id = ?
+    `).get(Number(inserted.lastInsertRowid));
+    response.status(201).json(goalRow(row));
+  });
+
+  app.put("/api/goals/:id", (request, response) => {
+    const id = Number(request.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) {
+      return response.status(400).json({ error: "Goal ID must be a positive integer." });
+    }
+
+    const result = validateGoal(request.body);
+    if (result.error) return response.status(400).json({ error: result.error });
+    const { name, targetCents, savedCents, targetDate } = result.value;
+    const update = database.prepare(`
+      UPDATE savings_goals
+      SET name = ?, target_cents = ?, saved_cents = ?, target_date = ?
+      WHERE id = ?
+    `).run(name, targetCents, savedCents, targetDate, id);
+    if (update.changes === 0) return response.status(404).json({ error: "Savings goal not found." });
+
+    const row = database.prepare(`
+      SELECT id, name, target_cents, saved_cents, target_date
+      FROM savings_goals WHERE id = ?
+    `).get(id);
+    response.json(goalRow(row));
+  });
+
+  app.delete("/api/goals/:id", (request, response) => {
+    const id = Number(request.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) {
+      return response.status(400).json({ error: "Goal ID must be a positive integer." });
+    }
+
+    const result = database.prepare("DELETE FROM savings_goals WHERE id = ?").run(id);
+    if (result.changes === 0) return response.status(404).json({ error: "Savings goal not found." });
+    response.status(204).end();
+  });
+
   app.get("/api/dashboard", (request, response) => {
     const period = request.query.period === "month" ? "month" : "week";
     const now = new Date();
@@ -322,7 +428,7 @@ if (require.main === module) {
   const database = createDatabase(process.env.DB_PATH || path.join(__dirname, "..", "data", "finora.sqlite"));
   const app = createApp(database);
   const port = Number(process.env.PORT || 4000);
-  const host = process.env.HOST || "127.0.0.1";
+  const host = process.env.HOST || "0.0.0.0";
   const server = app.listen(port, host, () => {
     console.log(`Finora API listening at http://${host}:${port}`);
   });

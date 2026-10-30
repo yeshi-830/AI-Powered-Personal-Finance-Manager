@@ -31,6 +31,7 @@ The backend creates `backend/data/finora.sqlite` automatically. This database is
 
 - Add, edit, delete, search, and CSV-export income and expense transactions
 - Set and manage monthly category budgets
+- Create savings goals with target amounts, saved progress, and optional target dates
 - View lifetime balance, week/month totals, daily cash flow, and budget progress
 - Persist data across restarts in SQLite
 
@@ -42,6 +43,10 @@ The backend creates `backend/data/finora.sqlite` automatically. This database is
 - `GET /api/dashboard?period=week|month`
 - `GET /api/budgets`
 - `PUT`, `DELETE /api/budgets/:category`
+- `GET`, `POST /api/goals`
+- `PUT`, `DELETE /api/goals/:id`
+
+Savings goal requests use `name`, `targetAmount`, `savedAmount`, and an optional `targetDate` (`YYYY-MM-DD`). Amounts are in USD.
 
 The app is currently a single-user local application and does not include sign-in or cloud synchronization. Keep a backup of `backend/data/finora.sqlite` if you need to preserve your records.
 

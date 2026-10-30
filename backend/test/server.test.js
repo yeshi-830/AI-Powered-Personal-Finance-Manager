@@ -94,6 +94,96 @@ test("transaction, budget, and dashboard APIs validate and calculate real data",
   assert.deepEqual((await listResponse.json()).map((transaction) => transaction.name), ["Paycheck"]);
 });
 
+test("savings goal API validates, updates, lists, and deletes goals", async (t) => {
+  const database = createDatabase(":memory:");
+  t.after(() => database.close());
+  const baseUrl = await startServer(database, t);
+  const headers = { "Content-Type": "application/json" };
+
+  const invalid = await fetch(`${baseUrl}/api/goals`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Trip", targetAmount: 0, savedAmount: 0 }),
+  });
+  assert.equal(invalid.status, 400);
+
+  const invalidDate = await fetch(`${baseUrl}/api/goals`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      name: "Trip",
+      targetAmount: 1000,
+      savedAmount: 0,
+      targetDate: "2026-02-30",
+    }),
+  });
+  assert.equal(invalidDate.status, 400);
+
+  const invalidSavedAmount = await fetch(`${baseUrl}/api/goals`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      name: "Trip",
+      targetAmount: 1000,
+      savedAmount: -1,
+    }),
+  });
+  assert.equal(invalidSavedAmount.status, 400);
+
+  const createResponse = await fetch(`${baseUrl}/api/goals`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      name: "Emergency fund",
+      targetAmount: 5000,
+      savedAmount: 0,
+      targetDate: localDate(),
+    }),
+  });
+  assert.equal(createResponse.status, 201);
+  const goal = await createResponse.json();
+  assert.equal(goal.name, "Emergency fund");
+  assert.equal(goal.targetAmount, 5000);
+  assert.equal(goal.savedAmount, 0);
+
+  const updateResponse = await fetch(`${baseUrl}/api/goals/${goal.id}`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      name: "Rainy day fund",
+      targetAmount: 6000,
+      savedAmount: 750,
+      targetDate: "",
+    }),
+  });
+  assert.equal(updateResponse.status, 200);
+  assert.deepEqual(await updateResponse.json(), {
+    id: goal.id,
+    name: "Rainy day fund",
+    targetAmount: 6000,
+    savedAmount: 750,
+    targetDate: null,
+  });
+
+  const listResponse = await fetch(`${baseUrl}/api/goals`);
+  assert.deepEqual(await listResponse.json(), [{
+    id: goal.id,
+    name: "Rainy day fund",
+    targetAmount: 6000,
+    savedAmount: 750,
+    targetDate: null,
+  }]);
+
+  const deleteResponse = await fetch(`${baseUrl}/api/goals/${goal.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(deleteResponse.status, 204);
+  const missingResponse = await fetch(`${baseUrl}/api/goals/${goal.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(missingResponse.status, 404);
+});
+
 test("database records remain available after reopening the SQLite file", (t) => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), "finora-test-"));
   const databasePath = path.join(folder, "finora.sqlite");
@@ -104,9 +194,14 @@ test("database records remain available after reopening the SQLite file", (t) =>
     INSERT INTO transactions (name, category, amount_cents, type, transaction_date)
     VALUES (?, ?, ?, ?, ?)
   `).run("Persisted entry", "Other", 1250, "expense", localDate());
+  firstConnection.prepare(`
+    INSERT INTO savings_goals (name, target_cents, saved_cents, target_date)
+    VALUES (?, ?, ?, ?)
+  `).run("Persisted goal", 10000, 2500, null);
   firstConnection.close();
 
   const secondConnection = createDatabase(databasePath);
   assert.equal(secondConnection.prepare("SELECT COUNT(*) AS count FROM transactions").get().count, 1);
+  assert.equal(secondConnection.prepare("SELECT COUNT(*) AS count FROM savings_goals").get().count, 1);
   secondConnection.close();
 });
