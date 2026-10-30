@@ -18,21 +18,21 @@ Finora is a local-first personal finance manager for tracking transactions, mont
 
 ## Run locally
 
-Install dependencies and start the backend and frontend in separate terminals from the project root.
+Install dependencies in both projects, then start the frontend from its directory. The frontend command starts the backend API and Vite together.
 
-**Terminal 1 — backend**
+**Install dependencies**
 
 ```powershell
 cd backend
 npm install
-npm run dev
+cd frontend
+npm install
 ```
 
-**Terminal 2 — frontend**
+**Start the app**
 
 ```powershell
 cd frontend
-npm install
 npm run dev
 ```
 
