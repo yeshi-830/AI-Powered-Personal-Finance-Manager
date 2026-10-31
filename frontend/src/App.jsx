@@ -174,7 +174,10 @@ function App() {
     [transactions, search, categoryFilter, typeFilter]
   );
 
-  const budgets = dashboardData?.budgets ?? [];
+  const budgets = useMemo(
+    () => dashboardData?.budgets ?? [],
+    [dashboardData]
+  );
   const periodData = dashboardData?.period;
 
   const totalBudget = budgets.reduce(
