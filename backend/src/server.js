@@ -7,6 +7,7 @@ require("dotenv").config();
 
 const categories = ["Food & Dining", "Transportation", "Shopping", "Healthcare", "Other"];
 const allowedTypes = ["income", "expense"];
+const recurringFrequencies = ["weekly", "monthly", "yearly"];
 
 function createDatabase(databasePath = path.join(__dirname, "..", "data", "finora.sqlite")) {
   if (databasePath !== ":memory:") {
@@ -38,6 +39,17 @@ function createDatabase(databasePath = path.join(__dirname, "..", "data", "finor
       target_cents INTEGER NOT NULL CHECK (target_cents > 0),
       saved_cents INTEGER NOT NULL CHECK (saved_cents >= 0),
       target_date TEXT
+    );
+    CREATE TABLE IF NOT EXISTS recurring_transactions (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+      category TEXT NOT NULL,
+      amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+      type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+      frequency TEXT NOT NULL CHECK (frequency IN ('weekly', 'monthly', 'yearly')),
+      next_date TEXT NOT NULL,
+      last_generated TEXT,
+      active INTEGER NOT NULL DEFAULT 1
     );
   `);
   return database;
@@ -101,6 +113,68 @@ function goalRow(row) {
     targetAmount: row.target_cents / 100,
     savedAmount: row.saved_cents / 100,
     targetDate: row.target_date,
+  };
+}
+
+function addDateInterval(dateString, frequency) {
+  const current = new Date(`${dateString}T00:00:00`);
+  const amount = frequency === "weekly" ? 7 : frequency === "monthly" ? 1 : 12;
+  const next = new Date(current);
+  if (frequency === "weekly") {
+    next.setDate(current.getDate() + 7);
+  } else if (frequency === "monthly") {
+    next.setMonth(current.getMonth() + 1);
+  } else {
+    next.setFullYear(current.getFullYear() + 1);
+  }
+  return localDate(next);
+}
+
+function validateRecurringTransaction(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { error: "A recurring transaction object is required." };
+  }
+
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const category = body.category;
+  const type = body.type;
+  const frequency = body.frequency;
+  const nextDate = body.nextDate;
+  const amountCents = parseAmount(body.amount);
+
+  if (!name || name.length > 80) return { error: "Name must be between 1 and 80 characters." };
+  if (!allowedTypes.includes(type)) return { error: "Type must be income or expense." };
+  if (type === "expense" && !categories.includes(category)) {
+    return { error: "Choose a valid expense category." };
+  }
+  if (type === "income" && category !== "Income") {
+    return { error: "Income recurring transactions must use the Income category." };
+  }
+  if (!recurringFrequencies.includes(frequency)) return { error: "Frequency must be weekly, monthly, or yearly." };
+  if (!amountCents) return { error: "Amount must be a positive number with no more than two decimal places." };
+  if (!validDate(nextDate)) return { error: "Next date must be a valid YYYY-MM-DD date." };
+
+  return {
+    value: {
+      name,
+      category,
+      amountCents,
+      type,
+      frequency,
+      nextDate,
+    },
+  };
+}
+
+function recurringRow(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    amount: row.amount_cents / 100,
+    type: row.type,
+    frequency: row.frequency,
+    nextDate: row.next_date,
   };
 }
 
