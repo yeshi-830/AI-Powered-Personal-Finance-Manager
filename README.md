@@ -9,6 +9,7 @@ Finora is a local-first personal finance manager for tracking transactions, mont
 - Create and manage monthly category budgets
 - Set savings goals, track progress, and record contributions
 - Review your lifetime balance, weekly or monthly totals, and daily cash flow
+- Get smart budget and goal recommendations based on your current spending pattern
 - Keep data in a local SQLite database between app restarts
 
 ## Requirements

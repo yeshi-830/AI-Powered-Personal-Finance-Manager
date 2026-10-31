@@ -217,6 +217,95 @@ function App() {
     };
   }, [budgets, dashboardData, goals]);
 
+  const recommendations = useMemo(() => {
+    const items = [];
+    const overBudget = totalBudget > 0 && totalBudgetSpent > totalBudget;
+    const activeBudgets = budgets.filter((budget) => budget.limit > 0);
+    const nearLimit = activeBudgets.filter((budget) => budget.spent >= budget.limit * 0.8 && budget.spent < budget.limit);
+
+    if (overBudget) {
+      items.push({
+        tone: "warning",
+        badge: "Priority",
+        title: "Budget is running high",
+        description: `You are ${money(totalBudgetSpent - totalBudget)} over your monthly budget. Trim discretionary spending or rebalance a few categories this week.`,
+        action: "Review budgets",
+        target: "Budgets",
+      });
+    } else if (nearLimit.length > 0) {
+      const topCategory = nearLimit.sort((first, second) => second.spent - first.spent)[0];
+      items.push({
+        tone: "warning",
+        badge: "Watch",
+        title: `${topCategory.category} is close to its cap`,
+        description: `${money(topCategory.limit - topCategory.spent)} left before you hit the budget ceiling. Consider moving planned purchases elsewhere.`,
+        action: "Review budgets",
+        target: "Budgets",
+      });
+    } else {
+      items.push({
+        tone: "success",
+        badge: "Healthy",
+        title: "Budget health is on track",
+        description: `You still have ${money(Math.max(0, totalBudget - totalBudgetSpent))} available across your monthly budgets.`,
+        action: "Check budget plan",
+        target: "Budgets",
+      });
+    }
+
+    if (insights.nextGoal) {
+      const remaining = insights.nextGoal.targetAmount - insights.nextGoal.savedAmount;
+      items.push({
+        tone: "info",
+        badge: "Goal",
+        title: `Keep ${insights.nextGoal.name} moving`,
+        description: `You are ${money(remaining)} away from the target. A small extra contribution this week could close the gap faster.`,
+        action: "Add savings",
+        target: "Savings goals",
+      });
+    } else {
+      items.push({
+        tone: "success",
+        badge: "Goal",
+        title: "Your saving goals are on pace",
+        description: "You've covered all active targets. Consider creating a new milestone or adding extra buffer to cash flow.",
+        action: "Create new goal",
+        target: "Savings goals",
+      });
+    }
+
+    if (budgets.length === 0) {
+      items.push({
+        tone: "neutral",
+        badge: "Start",
+        title: "Build your budget foundation",
+        description: "Set category caps for essentials like Food & Dining, Shopping, and Transportation so your spending stays intentional.",
+        action: "Set budget",
+        target: "Budgets",
+      });
+    } else if (insights.budgetAlerts > 1) {
+      items.push({
+        tone: "warning",
+        badge: "Alert",
+        title: "Multiple categories are trending high",
+        description: `${insights.budgetAlerts} categories are at or above 80% of their monthly limit. Keeping an eye on them will protect your surplus.`,
+        action: "Review categories",
+        target: "Budgets",
+      });
+    } else {
+      items.push({
+        tone: "neutral",
+        badge: "Energy",
+        title: "Your financial system is stable",
+        description: "You are balancing spending and saving well. Keep monitoring the categories that move the most. ",
+        action: "View overview",
+        target: "Overview",
+      });
+    }
+
+    return items.slice(0, 3);
+  }, [budgets, insights, totalBudget, totalBudgetSpent]);
+
   function openTransaction(transaction = null) {
     setError("");
 
@@ -824,67 +913,104 @@ function App() {
           </section>}
 
           {activeNav === "Overview" && (
-            <section className="insights-section" aria-label="Financial insights">
-              <div className="insights-header">
-                <div>
-                  <p className="eyebrow insight-label">
-                    <span className="live-dot" /> SMART INSIGHTS
-                  </p>
-                  <h2>Financial pulse</h2>
+            <>
+              <section className="insights-section" aria-label="Financial insights">
+                <div className="insights-header">
+                  <div>
+                    <p className="eyebrow insight-label">
+                      <span className="live-dot" /> SMART INSIGHTS
+                    </p>
+                    <h2>Financial pulse</h2>
+                  </div>
                 </div>
-              </div>
 
-              <div className="insights-grid">
-                <article className="insight-card primary">
-                  <div className="insight-icon">
-                    <TrendingUp size={18} />
-                  </div>
-                  <div>
-                    <span>Savings rate</span>
-                    <strong>{Math.round(insights.savingsRate)}%</strong>
-                    <small>
-                      {insights.savingsRate >= 20
-                        ? "Healthy target"
-                        : insights.savingsRate > 0
-                          ? "Room to grow"
-                          : "Start building momentum"}
-                    </small>
-                  </div>
-                </article>
+                <div className="insights-grid">
+                  <article className="insight-card primary">
+                    <div className="insight-icon">
+                      <TrendingUp size={18} />
+                    </div>
+                    <div>
+                      <span>Savings rate</span>
+                      <strong>{Math.round(insights.savingsRate)}%</strong>
+                      <small>
+                        {insights.savingsRate >= 20
+                          ? "Healthy target"
+                          : insights.savingsRate > 0
+                            ? "Room to grow"
+                            : "Start building momentum"}
+                      </small>
+                    </div>
+                  </article>
 
-                <article className="insight-card">
-                  <div className="insight-icon">
-                    <Wallet size={18} />
-                  </div>
-                  <div>
-                    <span>Biggest spend</span>
-                    <strong>
-                      {insights.largestBudget
-                        ? insights.largestBudget.category
-                        : "No budgets set"}
-                    </strong>
-                    <small>
-                      {insights.largestBudget
-                        ? money(insights.largestBudget.spent)
-                        : "Set a category budget to compare spend"}
-                    </small>
-                  </div>
-                </article>
+                  <article className="insight-card">
+                    <div className="insight-icon">
+                      <Wallet size={18} />
+                    </div>
+                    <div>
+                      <span>Biggest spend</span>
+                      <strong>
+                        {insights.largestBudget
+                          ? insights.largestBudget.category
+                          : "No budgets set"}
+                      </strong>
+                      <small>
+                        {insights.largestBudget
+                          ? money(insights.largestBudget.spent)
+                          : "Set a category budget to compare spend"}
+                      </small>
+                    </div>
+                  </article>
 
-                <article className="insight-card">
-                  <div className="insight-icon">
-                    <Target size={18} />
-                  </div>
+                  <article className="insight-card">
+                    <div className="insight-icon">
+                      <Target size={18} />
+                    </div>
+                    <div>
+                      <span>Next goal</span>
+                      <strong>
+                        {insights.nextGoal ? insights.nextGoal.name : "All funded"}
+                      </strong>
+                      <small>{insights.headline}</small>
+                    </div>
+                  </article>
+                </div>
+              </section>
+
+              <section className="recommendations-section" aria-label="Money recommendations">
+                <div className="insights-header">
                   <div>
-                    <span>Next goal</span>
-                    <strong>
-                      {insights.nextGoal ? insights.nextGoal.name : "All funded"}
-                    </strong>
-                    <small>{insights.headline}</small>
+                    <p className="eyebrow insight-label">
+                      <span className="live-dot" /> MONEY MOVES
+                    </p>
+                    <h2>Smart recommendations</h2>
                   </div>
-                </article>
-              </div>
-            </section>
+                </div>
+
+                <div className="recommendation-list">
+                  {recommendations.map((recommendation) => (
+                    <article
+                      key={`${recommendation.title}-${recommendation.badge}`}
+                      className={`recommendation-card ${recommendation.tone}`}
+                    >
+                      <div className="recommendation-badge">{recommendation.badge}</div>
+
+                      <div className="recommendation-copy">
+                        <h3>{recommendation.title}</h3>
+                        <p>{recommendation.description}</p>
+                      </div>
+
+                      <button
+                        className="button-secondary small-button recommendation-action"
+                        onClick={() => setActiveNav(recommendation.target)}
+                        type="button"
+                      >
+                        {recommendation.action}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </>
           )}
 
           {(activeNav === "Overview" || activeNav === "Budgets") && (

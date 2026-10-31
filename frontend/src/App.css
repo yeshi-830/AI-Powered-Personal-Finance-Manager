@@ -819,6 +819,87 @@ button:disabled {
   line-height: 1.5;
 }
 
+.recommendations-section {
+  margin-bottom: 22px;
+}
+
+.recommendation-list {
+  display: grid;
+  gap: 14px;
+}
+
+.recommendation-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 18px 16px;
+  background: var(--surface);
+  border: 1px solid #e9ebf3;
+  border-radius: 13px;
+  box-shadow: 0 3px 12px rgba(34, 39, 75, 0.018);
+}
+
+.recommendation-card.warning {
+  background: linear-gradient(145deg, #fff9f5, #ffffff);
+  border-color: #f7dfd3;
+}
+
+.recommendation-card.success {
+  background: linear-gradient(145deg, #f3fdf9, #ffffff);
+  border-color: #d8f2ea;
+}
+
+.recommendation-card.info {
+  background: linear-gradient(145deg, #f7f4ff, #ffffff);
+  border-color: #e3dcff;
+}
+
+.recommendation-card.neutral {
+  background: linear-gradient(145deg, #fafafb, #ffffff);
+  border-color: #eceef4;
+}
+
+.recommendation-badge {
+  display: grid;
+  min-width: 62px;
+  min-height: 30px;
+  padding: 0 10px;
+  place-items: center;
+  color: #5d4dc8;
+  background: #f1eeff;
+  border: 1px solid #e0d9ff;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.recommendation-copy {
+  min-width: 0;
+}
+
+.recommendation-copy h3 {
+  margin: 0 0 6px;
+  color: #292c43;
+  font-family: 'Manrope', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+}
+
+.recommendation-copy p {
+  margin: 0;
+  color: #6d7388;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.recommendation-action {
+  min-width: 120px;
+}
+
 /* Chart and budget panels */
 
 .middle-grid {
