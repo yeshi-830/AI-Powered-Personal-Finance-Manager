@@ -38,7 +38,7 @@ cd frontend
 npm run dev
 ```
 
-Open the Vite URL shown in the frontend terminal (usually `http://localhost:5173`). During development, Vite forwards `/api` requests to the backend at `http://127.0.0.1:4000`.
+Open the Vite URL shown in the frontend terminal (usually `http://localhost:5173`). During development, the frontend starts the backend automatically and forwards `/api` requests to whichever port is available, starting from `4000` when it is free.
 
 The backend creates `backend/data/finora.sqlite` on first run. This database is excluded from Git because it may contain personal financial records. Back it up regularly if you need to preserve your data.
 
@@ -48,7 +48,7 @@ Backend settings can be provided through environment variables or a `backend/.en
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `PORT` | `4000` | Port used by the API server |
+| `PORT` | `4000` | Preferred port for the API server; if it is occupied, the server will automatically select the next available port |
 | `HOST` | `0.0.0.0` | Network interface used by the API server |
 | `DB_PATH` | `backend/data/finora.sqlite` | Path to the SQLite database |
 | `FRONTEND_ORIGIN` | `http://localhost:5173` | Comma-separated list of allowed browser origins |

@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const { DatabaseSync } = require("node:sqlite");
 const fs = require("node:fs");
+const net = require("node:net");
 const path = require("node:path");
 require("dotenv").config();
 
@@ -238,6 +239,24 @@ function budgetRows(database, monthStart, monthEnd) {
     limit: row.monthly_limit_cents / 100,
     spent: row.spent_cents / 100,
   }));
+}
+
+function findAvailablePort(port = Number(process.env.PORT || 4000)) {
+  return new Promise((resolve, reject) => {
+    const tester = net.createServer();
+
+    tester.once("error", (error) => {
+      if (error.code === "EADDRINUSE") {
+        resolve(findAvailablePort(port + 1));
+        return;
+      }
+      reject(error);
+    });
+
+    tester.listen(port, "0.0.0.0", () => {
+      tester.close(() => resolve(port));
+    });
+  });
 }
 
 function createApp(database) {
@@ -622,16 +641,27 @@ function createApp(database) {
 if (require.main === module) {
   const database = createDatabase(process.env.DB_PATH || path.join(__dirname, "..", "data", "finora.sqlite"));
   const app = createApp(database);
-  const port = Number(process.env.PORT || 4000);
+  const requestedPort = Number(process.env.PORT || 4000);
   const host = process.env.HOST || "0.0.0.0";
-  const server = app.listen(port, host, () => {
-    console.log(`Finora API listening at http://${host}:${port}`);
-  });
-  server.on("error", (error) => {
-    console.error("Unable to start the API server:", error);
-    database.close();
-    process.exitCode = 1;
-  });
+
+  findAvailablePort(requestedPort)
+    .then((port) => {
+      process.env.PORT = String(port);
+      const server = app.listen(port, host, () => {
+        console.log(`Finora API listening at http://${host}:${port}`);
+      });
+
+      server.on("error", (error) => {
+        console.error("Unable to start the API server:", error);
+        database.close();
+        process.exitCode = 1;
+      });
+    })
+    .catch((error) => {
+      console.error("Unable to find an available API port:", error);
+      database.close();
+      process.exitCode = 1;
+    });
 }
 
 module.exports = { createApp, createDatabase };
