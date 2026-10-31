@@ -192,6 +192,28 @@ function App() {
       ? Math.min(100, (totalBudgetSpent / totalBudget) * 100)
       : 0;
 
+  const insights = useMemo(() => {
+    const income = dashboardData?.period?.income ?? 0;
+    const savings = dashboardData?.period?.savings ?? 0;
+    const largestBudget = [...budgets].sort((first, second) => second.spent - first.spent)[0] ?? null;
+    const nextGoal = [...goals]
+      .filter((goal) => goal.savedAmount < goal.targetAmount)
+      .sort((first, second) => (first.targetAmount - first.savedAmount) - (second.targetAmount - second.savedAmount))[0] ?? null;
+    const savingsRate = income > 0 ? (savings / income) * 100 : 0;
+    const budgetAlerts = budgets.filter((budget) => budget.limit > 0 && budget.spent >= budget.limit * 0.8).length;
+
+    return {
+      savingsRate,
+      largestBudget,
+      nextGoal,
+      budgetAlerts,
+      headline:
+        nextGoal
+          ? `${nextGoal.name} still needs ${money(nextGoal.targetAmount - nextGoal.savedAmount)}`
+          : "Every goal is fully funded.",
+    };
+  }, [budgets, dashboardData, goals]);
+
   function openTransaction(transaction = null) {
     setError("");
 
@@ -797,6 +819,70 @@ function App() {
               </div>
             </article>
           </section>}
+
+          {activeNav === "Overview" && (
+            <section className="insights-section" aria-label="Financial insights">
+              <div className="insights-header">
+                <div>
+                  <p className="eyebrow insight-label">
+                    <span className="live-dot" /> SMART INSIGHTS
+                  </p>
+                  <h2>Financial pulse</h2>
+                </div>
+              </div>
+
+              <div className="insights-grid">
+                <article className="insight-card primary">
+                  <div className="insight-icon">
+                    <TrendingUp size={18} />
+                  </div>
+                  <div>
+                    <span>Savings rate</span>
+                    <strong>{Math.round(insights.savingsRate)}%</strong>
+                    <small>
+                      {insights.savingsRate >= 20
+                        ? "Healthy target"
+                        : insights.savingsRate > 0
+                          ? "Room to grow"
+                          : "Start building momentum"}
+                    </small>
+                  </div>
+                </article>
+
+                <article className="insight-card">
+                  <div className="insight-icon">
+                    <Wallet size={18} />
+                  </div>
+                  <div>
+                    <span>Biggest spend</span>
+                    <strong>
+                      {insights.largestBudget
+                        ? insights.largestBudget.category
+                        : "No budgets set"}
+                    </strong>
+                    <small>
+                      {insights.largestBudget
+                        ? money(insights.largestBudget.spent)
+                        : "Set a category budget to compare spend"}
+                    </small>
+                  </div>
+                </article>
+
+                <article className="insight-card">
+                  <div className="insight-icon">
+                    <Target size={18} />
+                  </div>
+                  <div>
+                    <span>Next goal</span>
+                    <strong>
+                      {insights.nextGoal ? insights.nextGoal.name : "All funded"}
+                    </strong>
+                    <small>{insights.headline}</small>
+                  </div>
+                </article>
+              </div>
+            </section>
+          )}
 
           {(activeNav === "Overview" || activeNav === "Budgets") && (
           <section className={`middle-grid ${activeNav === "Budgets" ? "single-panel" : ""}`}>
