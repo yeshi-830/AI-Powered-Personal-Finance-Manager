@@ -5,7 +5,7 @@ import {
   Bell, Search, Plus, ArrowUpRight, ArrowDownRight,
   CreditCard, PiggyBank, TrendingUp, Menu, X, ChevronDown,
   Utensils, Car, ShoppingBag, Briefcase, HeartPulse,
-  Pencil, Trash2, Download, Sparkles
+  Pencil, Trash2, Download, Sparkles, CalendarRange
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -72,18 +72,20 @@ async function request(path, options) {
 }
 
 async function fetchAppData(period) {
-  const [transactions, dashboard, goals] = await Promise.all([
+  const [transactions, dashboard, goals, recurring] = await Promise.all([
     request("/api/transactions"),
     request(`/api/dashboard?period=${period}`),
     request("/api/goals"),
+    request("/api/recurring"),
   ]);
 
-  return { transactions, dashboard, goals };
+  return { transactions, dashboard, goals, recurring };
 }
 
 function App() {
   const [transactions, setTransactions] = useState([]);
   const [goals, setGoals] = useState([]);
+  const [recurring, setRecurring] = useState([]);
   const [dashboardData, setDashboardData] = useState(null);
   const [activeNav, setActiveNav] = useState("Overview");
   const [period, setPeriod] = useState("week");
@@ -116,6 +118,14 @@ function App() {
     savedAmount: "0",
     targetDate: "",
   });
+  const [recurringForm, setRecurringForm] = useState({
+    name: "",
+    category: categories[0],
+    amount: "",
+    type: "expense",
+    frequency: "monthly",
+    nextDate: todayISO(),
+  });
   const [contributionAmount, setContributionAmount] = useState("");
 
   const refreshData = useCallback(async () => {
@@ -124,11 +134,13 @@ function App() {
         transactions: nextTransactions,
         dashboard: nextDashboard,
         goals: nextGoals,
+        recurring: nextRecurring,
       } = await fetchAppData(period);
 
       setTransactions(nextTransactions);
       setDashboardData(nextDashboard);
       setGoals(nextGoals);
+      setRecurring(nextRecurring);
       setError("");
     } catch (requestError) {
       setError(requestError.message);
@@ -141,13 +153,14 @@ function App() {
     let cancelled = false;
 
     fetchAppData(period)
-      .then(({ transactions: nextTransactions, dashboard: nextDashboard, goals: nextGoals }) => {
+      .then(({ transactions: nextTransactions, dashboard: nextDashboard, goals: nextGoals, recurring: nextRecurring }) => {
         if (cancelled) return;
 
         setTransactions(nextTransactions);
         setDashboardData(nextDashboard);
         setGoals(nextGoals);
-        setError("");
+    setRecurring(nextRecurring);
+    setError("");
       })
       .catch((requestError) => {
         if (!cancelled) setError(requestError.message);
@@ -177,6 +190,13 @@ function App() {
   const budgets = useMemo(
     () => dashboardData?.budgets ?? [],
     [dashboardData]
+  );
+  const recurringSummary = useMemo(
+    () => recurring.reduce((total, item) => {
+      total[item.type === "income" ? "income" : "expense"] += item.amount;
+      return total;
+    }, { income: 0, expense: 0 }),
+    [recurring]
   );
   const periodData = dashboardData?.period;
 
@@ -377,6 +397,30 @@ function App() {
     setModal({ type: "goal", goalId: goal?.id ?? null });
   }
 
+  function openRecurring(entry = null) {
+    setError("");
+    setRecurringForm(
+      entry
+        ? {
+            name: entry.name,
+            category: entry.category,
+            amount: String(entry.amount),
+            type: entry.type,
+            frequency: entry.frequency,
+            nextDate: entry.nextDate,
+          }
+        : {
+            name: "",
+            category: categories[0],
+            amount: "",
+            type: "expense",
+            frequency: "monthly",
+            nextDate: todayISO(),
+          }
+    );
+    setModal({ type: "recurring", recurringId: entry?.id ?? null });
+  }
+
   function openContribution(goal) {
     setError("");
     setContributionAmount("");
@@ -502,6 +546,39 @@ function App() {
     }
   }
 
+  async function submitRecurring(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+
+    try {
+      await request(
+        modal.recurringId
+          ? `/api/recurring/${modal.recurringId}`
+          : "/api/recurring",
+        {
+          method: modal.recurringId ? "PUT" : "POST",
+          body: JSON.stringify({
+            ...recurringForm,
+            amount: Number(recurringForm.amount),
+          }),
+        }
+      );
+
+      setModal(null);
+      setNotice(
+        modal.recurringId
+          ? "Recurring schedule updated."
+          : "Recurring schedule saved."
+      );
+      await refreshData();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function deleteTransaction(transaction) {
     if (
       !window.confirm(
@@ -559,6 +636,30 @@ function App() {
     }
   }
 
+  async function deleteRecurring(entry) {
+    if (!window.confirm(`Remove the recurring schedule for "${entry.name}"?`)) {
+      return;
+    }
+
+    try {
+      await request(`/api/recurring/${entry.id}`, { method: "DELETE" });
+      setNotice("Recurring schedule removed.");
+      await refreshData();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function applyRecurring(entry) {
+    try {
+      await request(`/api/recurring/${entry.id}/apply`, { method: "POST" });
+      setNotice(`Applied the next ${entry.frequency} payment for ${entry.name}.`);
+      await refreshData();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
   function exportTransactions() {
     const rows = [
       ["Date", "Name", "Category", "Type", "Amount"],
@@ -598,6 +699,7 @@ function App() {
     { label: "Transactions", icon: ArrowLeftRight },
     { label: "Budgets", icon: Wallet },
     { label: "Savings goals", icon: Target },
+    { label: "Recurring", icon: CalendarRange },
   ];
 
   return (
@@ -1535,6 +1637,82 @@ function App() {
             </section>
           )}
 
+          {activeNav === "Recurring" && (
+            <section className="recurring-section" aria-label="Recurring transactions">
+              <div className="recurring-summary">
+                <article className="panel recurring-summary-card">
+                  <span>Active schedules</span>
+                  <strong>{recurring.length}</strong>
+                </article>
+                <article className="panel recurring-summary-card">
+                  <span>Income scheduled</span>
+                  <strong>{money(recurringSummary.income)}</strong>
+                </article>
+                <article className="panel recurring-summary-card">
+                  <span>Expense scheduled</span>
+                  <strong>{money(recurringSummary.expense)}</strong>
+                </article>
+              </div>
+
+              {recurring.length ? (
+                <div className="recurring-grid">
+                  {recurring.map((entry) => (
+                    <article className="panel recurring-card" key={entry.id}>
+                      <div className="recurring-card-top">
+                        <div className="goal-icon recurring-icon"><CalendarRange size={18} /></div>
+                        <div className="goal-actions">
+                          <button
+                            className="row-menu"
+                            aria-label={`Edit ${entry.name}`}
+                            onClick={() => openRecurring(entry)}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            className="row-menu danger"
+                            aria-label={`Delete ${entry.name}`}
+                            onClick={() => deleteRecurring(entry)}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="recurring-card-body">
+                        <div>
+                          <h2>{entry.name}</h2>
+                          <span className="category-pill">{entry.category}</span>
+                        </div>
+                        <p className="recurring-amount">
+                          {entry.type === "income" ? "+" : "−"}
+                          {money(entry.amount)}
+                        </p>
+                      </div>
+
+                      <div className="recurring-meta">
+                        <span>{entry.frequency}</span>
+                        <span>Next due · {displayDate(entry.nextDate)}</span>
+                      </div>
+
+                      <button className="button-primary recurring-button" onClick={() => applyRecurring(entry)}>
+                        <Plus size={15} /> Apply next
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="panel goals-empty">
+                  <div className="goal-icon"><CalendarRange size={22} /></div>
+                  <h2>Set recurring cash flow</h2>
+                  <p>Track subscriptions, salary, rent, or other repeating payments so your budget stays realistic.</p>
+                  <button className="button-primary" onClick={() => openRecurring()}>
+                    <Plus size={16} /> Add recurring schedule
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
+
           <footer className="footer">
             <span>© 2026 Finora Finance</span>
             <span>
@@ -1780,6 +1958,133 @@ function App() {
                   disabled={saving}
                 >
                   {saving ? "Saving…" : "Save budget"}
+                </button>
+              </div>
+            </form>
+          ) : modal.type === "recurring" ? (
+            <form className="transaction-modal" onSubmit={submitRecurring}>
+              <div className="modal-heading">
+                <div>
+                  <h2>{modal.recurringId ? "Edit recurring schedule" : "Add recurring schedule"}</h2>
+                  <p>Plan income and expenses that repeat.</p>
+                </div>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => setModal(null)}
+                  aria-label="Close"
+                >
+                  <X />
+                </button>
+              </div>
+
+              {error && (
+                <div className="form-error" role="alert">
+                  {error}
+                </div>
+              )}
+
+              <label>
+                Schedule name
+                <input
+                  autoFocus
+                  required
+                  maxLength={80}
+                  placeholder="e.g. Rent payment"
+                  value={recurringForm.name}
+                  onChange={(event) =>
+                    setRecurringForm({ ...recurringForm, name: event.target.value })
+                  }
+                />
+              </label>
+
+              <label>
+                Type
+                <select
+                  value={recurringForm.type}
+                  onChange={(event) =>
+                    setRecurringForm({
+                      ...recurringForm,
+                      type: event.target.value,
+                      category: event.target.value === "income" ? "Income" : recurringForm.category === "Income" ? categories[0] : recurringForm.category,
+                    })
+                  }
+                >
+                  <option value="expense">Expense</option>
+                  <option value="income">Income</option>
+                </select>
+              </label>
+
+              <label>
+                Category
+                <select
+                  value={recurringForm.category}
+                  onChange={(event) =>
+                    setRecurringForm({ ...recurringForm, category: event.target.value })
+                  }
+                >
+                  {recurringForm.type === "income" ? (
+                    <option value="Income">Income</option>
+                  ) : (
+                    categories.map((category) => (
+                      <option key={category} value={category}>{category}</option>
+                    ))
+                  )}
+                </select>
+              </label>
+
+              <label>
+                Amount (USD)
+                <input
+                  required
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={recurringForm.amount}
+                  onChange={(event) =>
+                    setRecurringForm({ ...recurringForm, amount: event.target.value })
+                  }
+                />
+              </label>
+
+              <label>
+                Frequency
+                <select
+                  value={recurringForm.frequency}
+                  onChange={(event) =>
+                    setRecurringForm({ ...recurringForm, frequency: event.target.value })
+                  }
+                >
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </label>
+
+              <label>
+                Next due date
+                <input
+                  required
+                  type="date"
+                  value={recurringForm.nextDate}
+                  onChange={(event) =>
+                    setRecurringForm({ ...recurringForm, nextDate: event.target.value })
+                  }
+                />
+              </label>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => setModal(null)}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="button-primary" disabled={saving}>
+                  {saving ? "Saving…" : modal.recurringId ? "Save schedule" : "Create schedule"}
                 </button>
               </div>
             </form>

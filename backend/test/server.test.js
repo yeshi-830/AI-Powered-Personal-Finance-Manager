@@ -205,6 +205,53 @@ test("savings goal API validates, updates, lists, and deletes goals", async (t) 
   assert.equal(missingGoalContribution.status, 404);
 });
 
+test("recurring transaction API creates, advances, and removes schedules", async (t) => {
+  const database = createDatabase(":memory:");
+  t.after(() => database.close());
+  const baseUrl = await startServer(database, t);
+  const nextDate = localDate(new Date(new Date().getFullYear(), new Date().getMonth(), 5));
+
+  const createResponse = await fetch(`${baseUrl}/api/recurring`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: "Gym membership",
+      category: "Healthcare",
+      type: "expense",
+      amount: 59.99,
+      frequency: "monthly",
+      nextDate,
+    }),
+  });
+  assert.equal(createResponse.status, 201);
+  const created = await createResponse.json();
+  assert.equal(created.name, "Gym membership");
+  assert.equal(created.amount, 59.99);
+
+  const applyResponse = await fetch(`${baseUrl}/api/recurring/${created.id}/apply`, {
+    method: "POST",
+  });
+  assert.equal(applyResponse.status, 201);
+  const applied = await applyResponse.json();
+  const expectedNext = new Date(`${nextDate}T12:00:00`);
+  expectedNext.setMonth(expectedNext.getMonth() + 1);
+  assert.equal(applied.transaction.name, "Gym membership");
+  assert.equal(applied.transaction.type, "expense");
+  assert.equal(applied.nextDate, localDate(expectedNext));
+
+  const listResponse = await fetch(`${baseUrl}/api/recurring`);
+  const recurring = await listResponse.json();
+  assert.equal(recurring.length, 1);
+  assert.equal(recurring[0].nextDate, applied.nextDate);
+
+  const deleteResponse = await fetch(`${baseUrl}/api/recurring/${created.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(deleteResponse.status, 204);
+  const emptyResponse = await fetch(`${baseUrl}/api/recurring`);
+  assert.deepEqual(await emptyResponse.json(), []);
+});
+
 test("database records remain available after reopening the SQLite file", (t) => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), "finora-test-"));
   const databasePath = path.join(folder, "finora.sqlite");

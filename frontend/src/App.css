@@ -1196,6 +1196,103 @@ button:disabled {
   color: #6254ba;
 }
 
+.recurring-section {
+  display: grid;
+  gap: 18px;
+}
+
+.recurring-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 17px;
+}
+
+.recurring-summary-card {
+  padding: 16px 18px 14px;
+}
+
+.recurring-summary-card span {
+  display: block;
+  color: #8a8ea2;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.recurring-summary-card strong {
+  display: block;
+  margin-top: 8px;
+  color: #2e334b;
+  font-family: 'Manrope', sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.recurring-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 18px;
+}
+
+.recurring-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px 18px 16px;
+}
+
+.recurring-card-top,
+.recurring-card-body,
+.recurring-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.recurring-card-body {
+  align-items: flex-start;
+}
+
+.recurring-card-body h2 {
+  margin: 0;
+  color: #2c3047;
+  font-family: 'Manrope', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.45px;
+}
+
+.recurring-card-body .category-pill {
+  margin-top: 8px;
+}
+
+.recurring-amount {
+  margin: 0;
+  color: #2b2d42;
+  font-family: 'Manrope', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.recurring-meta {
+  color: #7c8199;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.recurring-icon {
+  background: #f0edff;
+  color: #6c5ce7;
+}
+
+.recurring-button {
+  width: 100%;
+}
+
 /* Transactions table */
 
 .transactions-panel {

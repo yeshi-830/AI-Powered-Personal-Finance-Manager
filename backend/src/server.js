@@ -358,6 +358,100 @@ function createApp(database) {
     response.json(goals.map(goalRow));
   });
 
+  app.get("/api/recurring", (_request, response) => {
+    const recurring = database.prepare(`
+      SELECT id, name, category, amount_cents, type, frequency, next_date
+      FROM recurring_transactions
+      WHERE active = 1
+      ORDER BY next_date ASC, id ASC
+    `).all();
+    response.json(recurring.map(recurringRow));
+  });
+
+  app.post("/api/recurring", (request, response) => {
+    const result = validateRecurringTransaction(request.body);
+    if (result.error) return response.status(400).json({ error: result.error });
+
+    const { name, category, amountCents, type, frequency, nextDate } = result.value;
+    const inserted = database.prepare(`
+      INSERT INTO recurring_transactions (name, category, amount_cents, type, frequency, next_date)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(name, category, amountCents, type, frequency, nextDate);
+    const row = database.prepare(`
+      SELECT id, name, category, amount_cents, type, frequency, next_date
+      FROM recurring_transactions WHERE id = ?
+    `).get(Number(inserted.lastInsertRowid));
+    response.status(201).json(recurringRow(row));
+  });
+
+  app.put("/api/recurring/:id", (request, response) => {
+    const id = Number(request.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) {
+      return response.status(400).json({ error: "Recurring transaction ID must be a positive integer." });
+    }
+
+    const result = validateRecurringTransaction(request.body);
+    if (result.error) return response.status(400).json({ error: result.error });
+    const { name, category, amountCents, type, frequency, nextDate } = result.value;
+    const update = database.prepare(`
+      UPDATE recurring_transactions
+      SET name = ?, category = ?, amount_cents = ?, type = ?, frequency = ?, next_date = ?
+      WHERE id = ?
+    `).run(name, category, amountCents, type, frequency, nextDate, id);
+    if (update.changes === 0) return response.status(404).json({ error: "Recurring transaction not found." });
+
+    const row = database.prepare(`
+      SELECT id, name, category, amount_cents, type, frequency, next_date
+      FROM recurring_transactions WHERE id = ?
+    `).get(id);
+    response.json(recurringRow(row));
+  });
+
+  app.post("/api/recurring/:id/apply", (request, response) => {
+    const id = Number(request.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) {
+      return response.status(400).json({ error: "Recurring transaction ID must be a positive integer." });
+    }
+
+    const recurring = database.prepare(`
+      SELECT id, name, category, amount_cents, type, frequency, next_date
+      FROM recurring_transactions WHERE id = ? AND active = 1
+    `).get(id);
+    if (!recurring) return response.status(404).json({ error: "Recurring transaction not found." });
+
+    const inserted = database.prepare(`
+      INSERT INTO transactions (name, category, amount_cents, type, transaction_date)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(recurring.name, recurring.category, recurring.amount_cents, recurring.type, recurring.next_date);
+
+    const nextDate = addDateInterval(recurring.next_date, recurring.frequency);
+    database.prepare(`
+      UPDATE recurring_transactions
+      SET next_date = ?, last_generated = ?
+      WHERE id = ?
+    `).run(nextDate, localDate(new Date()), id);
+
+    const row = database.prepare(`
+      SELECT id, name, category, amount_cents, type, transaction_date
+      FROM transactions WHERE id = ?
+    `).get(Number(inserted.lastInsertRowid));
+    response.status(201).json({
+      transaction: transactionRow(row),
+      nextDate,
+    });
+  });
+
+  app.delete("/api/recurring/:id", (request, response) => {
+    const id = Number(request.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) {
+      return response.status(400).json({ error: "Recurring transaction ID must be a positive integer." });
+    }
+
+    const result = database.prepare("UPDATE recurring_transactions SET active = 0 WHERE id = ?").run(id);
+    if (result.changes === 0) return response.status(404).json({ error: "Recurring transaction not found." });
+    response.status(204).end();
+  });
+
   app.post("/api/goals", (request, response) => {
     const result = validateGoal(request.body);
     if (result.error) return response.status(400).json({ error: result.error });

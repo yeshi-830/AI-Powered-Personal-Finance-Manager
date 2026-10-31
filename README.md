@@ -9,6 +9,7 @@ Finora is a local-first personal finance manager for tracking transactions, mont
 - Create and manage monthly category budgets
 - Set savings goals, track progress, and record contributions
 - Review your lifetime balance, weekly or monthly totals, and daily cash flow
+- Create recurring income and expense schedules and apply the next occurrence automatically
 - Get smart budget and goal recommendations based on your current spending pattern
 - Keep data in a local SQLite database between app restarts
 
@@ -74,6 +75,11 @@ All routes are prefixed with `/api`.
 | `PUT` | `/goals/:id` | Update a savings goal |
 | `DELETE` | `/goals/:id` | Delete a savings goal |
 | `POST` | `/goals/:id/contributions` | Add to a savings goal |
+| `GET` | `/recurring` | List recurring income and expense schedules |
+| `POST` | `/recurring` | Create a recurring schedule |
+| `PUT` | `/recurring/:id` | Update a recurring schedule |
+| `DELETE` | `/recurring/:id` | Remove a recurring schedule |
+| `POST` | `/recurring/:id/apply` | Create the next scheduled transaction and advance the date |
 
 Transaction amounts, budget limits, savings targets, and contributions are in USD. Savings goals use `name`, `targetAmount`, and `savedAmount`, with an optional `targetDate` in `YYYY-MM-DD` format. Contribution requests contain an `amount`.
 
