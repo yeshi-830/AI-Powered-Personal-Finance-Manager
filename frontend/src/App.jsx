@@ -2236,6 +2236,32 @@ function App() {
             </section>
           )}
 
+          {activeNav === "Activity" && (
+            <section className="panel activity-page" aria-label="Audit activity timeline">
+              <div className="panel-heading">
+                <div>
+                  <h2>Activity timeline</h2>
+                  <p>Recent changes recorded for transactions, budgets, goals, and recurring schedules.</p>
+                </div>
+              </div>
+              {activity.length ? (
+                <div className="activity-list">
+                  {activity.map((item) => (
+                    <article className="activity-item" key={item.id}>
+                      <span className={`activity-mark ${item.action}`}><History size={15} /></span>
+                      <div>
+                        <strong>{item.summary}</strong>
+                        <span>{item.entityType} · {displayTimestamp(item.occurredAt)}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="activity-empty">There are no recorded changes yet.</p>
+              )}
+            </section>
+          )}
+
           {activeNav === "Settings" && (
             <section className="settings-page" aria-label="Application settings">
               <article className="panel settings-card">
@@ -2262,6 +2288,28 @@ function App() {
                     <MoonStar size={17} /> Dark
                   </button>
                 </div>
+                <fieldset className="widget-options">
+                  <legend>Dashboard widgets</legend>
+                  {[
+                    ["stats", "Key financial metrics"],
+                    ["insights", "Financial insights"],
+                    ["analytics", "Spending analytics"],
+                    ["recommendations", "Smart recommendations"],
+                    ["activity", "Recent activity"],
+                  ].map(([key, label]) => (
+                    <label key={key}>
+                      <input
+                        type="checkbox"
+                        checked={widgets[key]}
+                        onChange={() => setWidgets((current) => ({
+                          ...current,
+                          [key]: !current[key],
+                        }))}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </fieldset>
               </article>
 
               <article className="panel settings-card">
