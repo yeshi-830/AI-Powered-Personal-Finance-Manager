@@ -206,6 +206,8 @@ function App() {
   const [sortKey, setSortKey] = useState("date-desc");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [theme, setTheme] = useState(() => {
     const savedTheme = window.localStorage.getItem("finora-theme");
     return savedTheme || "light";
@@ -341,6 +343,18 @@ function App() {
         return byDate;
     }
   }, [filteredTransactions, sortKey]);
+
+  const pageSize = 20;
+  const pageCount = Math.max(1, Math.ceil(sortedTransactions.length / pageSize));
+  const pageTransactions = sortedTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const visibleTransactions = activeNav === "Transactions"
+    ? pageTransactions
+    : sortedTransactions.slice(0, 6);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedIds([]);
+  }, [activeNav, search, categoryFilter, typeFilter, sortKey, dateFrom, dateTo, transactions.length]);
 
   const budgets = useMemo(
     () => dashboardData?.budgets ?? [],
@@ -870,6 +884,28 @@ function App() {
       await refreshData();
     } catch (requestError) {
       setError(requestError.message);
+    }
+  }
+
+  async function deleteSelectedTransactions() {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.length} selected transactions? This cannot be undone.`)) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const result = await request("/api/transactions/bulk-delete", {
+        method: "POST",
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      setSelectedIds([]);
+      setNotice(`${result.deleted} transactions deleted.`);
+      await refreshData();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
     }
   }
 
