@@ -593,6 +593,37 @@ function App() {
     setModal({ type: "contribution", goalId: goal.id, goalName: goal.name });
   }
 
+  function openCsvImport() {
+    setError("");
+    setCsvPreview(null);
+    setModal({ type: "csv-import" });
+  }
+
+  async function handleCsvFile(event) {
+    const file = event.target.files?.[0];
+    setCsvPreview(null);
+    setError("");
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setError("Choose a CSV file.");
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      setError("CSV files must be smaller than 1 MB.");
+      return;
+    }
+
+    try {
+      const transactionsToImport = parseTransactionsCsv(await file.text());
+      setCsvPreview({
+        fileName: file.name,
+        transactions: transactionsToImport,
+      });
+    } catch (parseError) {
+      setError(parseError.message);
+    }
+  }
+
   async function submitTransaction(event) {
     event.preventDefault();
     setSaving(true);
@@ -626,6 +657,30 @@ function App() {
           : "Transaction saved."
       );
 
+      await refreshData();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitCsvImport(event) {
+    event.preventDefault();
+    if (!csvPreview?.transactions.length) return;
+
+    setSaving(true);
+    setError("");
+
+    try {
+      const result = await request("/api/transactions/import", {
+        method: "POST",
+        body: JSON.stringify({ transactions: csvPreview.transactions }),
+      });
+
+      setModal(null);
+      setCsvPreview(null);
+      setNotice(`${result.imported} transaction${result.imported === 1 ? "" : "s"} imported.`);
       await refreshData();
     } catch (requestError) {
       setError(requestError.message);
@@ -860,6 +915,27 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
+  function exportBackup() {
+    const backup = {
+      formatVersion: 1,
+      exportedAt: new Date().toISOString(),
+      currency: "USD",
+      transactions,
+      budgets,
+      goals,
+      recurring,
+    };
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" })
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `finora-backup-${todayISO()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setNotice("Your data backup was downloaded.");
+  }
+
   const navItems = [
     { label: "Overview", icon: LayoutDashboard },
     { label: "Transactions", icon: ArrowLeftRight },
@@ -896,6 +972,7 @@ function App() {
             <button
               key={label}
               className={`nav-link ${activeNav === label ? "active" : ""}`}
+              aria-current={activeNav === label ? "page" : undefined}
               onClick={() => {
                 setActiveNav(label);
                 setMobileMenu(false);
@@ -928,19 +1005,22 @@ function App() {
             Set budgets and track where your money goes.
           </p>
 
-          <button onClick={() => setActiveNav("Budgets")}>
+          <button onClick={() => {
+            setActiveNav("Budgets");
+            setMobileMenu(false);
+          }}>
             Review budgets <ArrowUpRight size={15} />
           </button>
         </div>
 
         <div className="sidebar-bottom">
           <button
-            className="nav-link"
-            onClick={() =>
-              setNotice(
-                "Your data is stored in the app database."
-              )
-            }
+            className={`nav-link ${activeNav === "Settings" ? "active" : ""}`}
+            aria-current={activeNav === "Settings" ? "page" : undefined}
+            onClick={() => {
+              setActiveNav("Settings");
+              setMobileMenu(false);
+            }}
           >
             <Settings size={19} />
             <span>Settings</span>
@@ -994,13 +1074,48 @@ function App() {
               />
             </label>
 
-            <button
-              className="icon-button notification-button"
-              aria-label="Notifications"
-              onClick={() => setNotice("You're all caught up!")}
-            >
-              <Bell size={19} />
-            </button>
+            <div className="notification-wrap">
+              <button
+                className="icon-button notification-button"
+                aria-label={`Notifications${notificationItems.length ? `, ${notificationItems.length} updates` : ""}`}
+                aria-expanded={notificationsOpen}
+                aria-controls="notification-panel"
+                onClick={() => setNotificationsOpen((open) => !open)}
+              >
+                <Bell size={19} />
+                {notificationItems.length > 0 && (
+                  <span className="notification-count">
+                    {notificationItems.length > 9 ? "9+" : notificationItems.length}
+                  </span>
+                )}
+              </button>
+              {notificationsOpen && (
+                <div className="notification-panel" id="notification-panel" role="region" aria-label="Financial notifications">
+                  <div className="notification-panel-heading">
+                    <strong>Financial updates</strong>
+                    <button
+                      className="notification-dismiss"
+                      onClick={() => setNotificationsOpen(false)}
+                      aria-label="Close notifications"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                  {notificationItems.length ? (
+                    <div className="notification-list">
+                      {notificationItems.map((item) => (
+                        <article className={`notification-item ${item.tone}`} key={item.id}>
+                          <strong>{item.title}</strong>
+                          <span>{item.detail}</span>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="notification-empty">No budget alerts or upcoming scheduled payments.</p>
+                  )}
+                </div>
+              )}
+            </div>
 
             <button
               className="icon-button theme-button"
@@ -1626,12 +1741,20 @@ function App() {
                 <p>{activeNav === "Transactions" ? "All of your financial activity" : "Your latest financial activity"}</p>
               </div>
 
-              <button
-                className="text-action"
-                onClick={() => openTransaction()}
-              >
-                <Plus size={15} /> Add new
-              </button>
+              <div className="transaction-panel-actions">
+                <button
+                  className="text-action"
+                  onClick={() => openTransaction()}
+                >
+                  <Plus size={15} /> Add new
+                </button>
+                <button
+                  className="text-action"
+                  onClick={openCsvImport}
+                >
+                  <FileUp size={15} /> Import CSV
+                </button>
+              </div>
             </div>
 
             <div className="transaction-filters" aria-label="Filter transactions">
@@ -1675,17 +1798,40 @@ function App() {
                   <option value="name">Name</option>
                 </select>
               </label>
-              {(categoryFilter !== "all" || typeFilter !== "all" || search) && (
+              <label>
+                <span>From</span>
+                <input
+                  type="date"
+                  aria-label="Filter from date"
+                  value={dateFrom}
+                  onChange={(event) => setDateFrom(event.target.value)}
+                />
+              </label>
+              <label>
+                <span>To</span>
+                <input
+                  type="date"
+                  aria-label="Filter to date"
+                  value={dateTo}
+                  onChange={(event) => setDateTo(event.target.value)}
+                />
+              </label>
+              {(categoryFilter !== "all" || typeFilter !== "all" || search || dateFrom || dateTo) && (
                 <button
                   className="clear-filters"
                   onClick={() => {
                     setSearch("");
                     setTypeFilter("all");
                     setCategoryFilter("all");
+                    setDateFrom("");
+                    setDateTo("");
                   }}
                 >
                   Clear filters
                 </button>
+              )}
+              {dateFrom && dateTo && dateFrom > dateTo && (
+                <span className="date-filter-error" role="alert">Start date must be on or before end date.</span>
               )}
               <span className="filter-result-count">
                 {sortedTransactions.length} {sortedTransactions.length === 1 ? "result" : "results"}
@@ -1970,6 +2116,58 @@ function App() {
                   </button>
                 </div>
               )}
+            </section>
+          )}
+
+          {activeNav === "Settings" && (
+            <section className="settings-page" aria-label="Application settings">
+              <article className="panel settings-card">
+                <div className="settings-card-heading">
+                  <div className="settings-icon"><Settings size={19} /></div>
+                  <div>
+                    <h2>Appearance</h2>
+                    <p>Choose the theme used on this device.</p>
+                  </div>
+                </div>
+                <div className="theme-options" role="group" aria-label="Color theme">
+                  <button
+                    className={theme === "light" ? "selected" : ""}
+                    aria-pressed={theme === "light"}
+                    onClick={() => setTheme("light")}
+                  >
+                    <SunMedium size={17} /> Light
+                  </button>
+                  <button
+                    className={theme === "dark" ? "selected" : ""}
+                    aria-pressed={theme === "dark"}
+                    onClick={() => setTheme("dark")}
+                  >
+                    <MoonStar size={17} /> Dark
+                  </button>
+                </div>
+              </article>
+
+              <article className="panel settings-card">
+                <div className="settings-card-heading">
+                  <div className="settings-icon"><FileText size={19} /></div>
+                  <div>
+                    <h2>Your data</h2>
+                    <p>Export a portable copy of your financial records.</p>
+                  </div>
+                </div>
+                <div className="settings-data-summary">
+                  <span>{transactions.length} transactions</span>
+                  <span>{budgets.length} budgets</span>
+                  <span>{goals.length} savings goals</span>
+                  <span>{recurring.length} recurring schedules</span>
+                </div>
+                <button className="button-primary" onClick={exportBackup}>
+                  <Download size={16} /> Download JSON backup
+                </button>
+                <p className="settings-note">
+                  Finora stores data in a local SQLite database. This app does not provide sign-in, cloud sync, or multi-user access.
+                </p>
+              </article>
             </section>
           )}
 
