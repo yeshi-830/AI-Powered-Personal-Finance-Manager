@@ -27,6 +27,7 @@ const defaultWidgets = {
   insights: true,
   analytics: true,
   recommendations: true,
+  activity: true,
 };
 
 function readDashboardWidgets() {
@@ -34,6 +35,9 @@ function readDashboardWidgets() {
   if (!saved) return { ...defaultWidgets };
   try {
     const parsed = JSON.parse(saved);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { ...defaultWidgets };
+    }
     return Object.fromEntries(
       Object.keys(defaultWidgets).map((key) => [key, parsed[key] !== false])
     );
@@ -1256,7 +1260,36 @@ function App() {
             </div>
           </section>
 
-          {activeNav === "Overview" && <section className="stat-grid">
+          {activeNav === "Overview" && showOnboarding && !loading && !error &&
+            transactions.length === 0 && goals.length === 0 && recurring.length === 0 && (
+              <section className="onboarding-card" aria-label="Getting started">
+                <div>
+                  <p className="eyebrow">WELCOME TO FINORA</p>
+                  <h2>Start with a clear picture of your finances</h2>
+                  <p>Add a transaction, set a category budget, then create a savings goal. Your records stay in your local database.</p>
+                  <div className="onboarding-actions">
+                    <button className="button-primary" onClick={() => openTransaction()}>
+                      <Plus size={16} /> Add your first transaction
+                    </button>
+                    <button className="button-secondary" onClick={() => setActiveNav("Budgets")}>
+                      Set a budget
+                    </button>
+                  </div>
+                </div>
+                <button
+                  className="onboarding-dismiss"
+                  onClick={() => {
+                    window.localStorage.setItem("finora-onboarding-complete", "true");
+                    setShowOnboarding(false);
+                  }}
+                  aria-label="Dismiss getting started guide"
+                >
+                  <X size={17} />
+                </button>
+              </section>
+            )}
+
+          {activeNav === "Overview" && widgets.stats && <section className="stat-grid">
             <article className="stat-card balance-card">
               <div className="stat-top">
                 <span>Total balance</span>
@@ -1354,6 +1387,7 @@ function App() {
 
           {activeNav === "Overview" && (
             <>
+              {widgets.insights && (
               <section className="insights-section" aria-label="Financial insights">
                 <div className="insights-header">
                   <div>
@@ -1415,7 +1449,9 @@ function App() {
                   </article>
                 </div>
               </section>
+              )}
 
+              {widgets.analytics && (
               <section className="analytics-section" aria-label="Spending analytics">
                 <div className="insights-header">
                   <div>
@@ -1487,7 +1523,9 @@ function App() {
                   </article>
                 </div>
               </section>
+              )}
 
+              {widgets.recommendations && (
               <section className="recommendations-section" aria-label="Money recommendations">
                 <div className="insights-header">
                   <div>
@@ -1522,6 +1560,36 @@ function App() {
                   ))}
                 </div>
               </section>
+              )}
+
+              {widgets.activity && (
+                <section className="panel activity-overview" aria-label="Recent activity">
+                  <div className="panel-heading">
+                    <div>
+                      <h2>Recent activity</h2>
+                      <p>Audited changes across your financial records</p>
+                    </div>
+                    <button className="text-action" onClick={() => setActiveNav("Activity")}>
+                      View all <ArrowUpRight size={15} />
+                    </button>
+                  </div>
+                  {activity.length ? (
+                    <div className="activity-list">
+                      {activity.slice(0, 5).map((item) => (
+                        <article className="activity-item" key={item.id}>
+                          <span className={`activity-mark ${item.action}`}><History size={15} /></span>
+                          <div>
+                            <strong>{item.summary}</strong>
+                            <span>{item.entityType} · {displayTimestamp(item.occurredAt)}</span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="activity-empty">Record changes will appear here as you use Finora.</p>
+                  )}
+                </section>
+              )}
             </>
           )}
 
