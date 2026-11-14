@@ -5,12 +5,16 @@ Finora is a local-first personal finance manager for tracking transactions, mont
 ## Features
 
 - Record, edit, search, and delete income and expense transactions
-- Export transactions as CSV
+- Search across transactions, budgets, savings goals, and recurring schedules
+- Filter transactions by date, category, and type; sort, paginate, and bulk-delete
+- Import up to 500 transactions from a validated CSV file and export CSV reports
 - Create and manage monthly category budgets
 - Set savings goals, track progress, and record contributions
 - Review your lifetime balance, weekly or monthly totals, and daily cash flow
 - Create recurring income and expense schedules and apply the next occurrence automatically
 - Get smart budget and goal recommendations based on your current spending pattern
+- Review budget and upcoming-payment notifications and an audit activity timeline
+- Customize dashboard widgets, switch themes, and download a portable JSON backup
 - Keep data in a local SQLite database between app restarts
 
 ## Requirements
@@ -49,11 +53,13 @@ Backend settings can be provided through environment variables or a `backend/.en
 | Variable | Default | Description |
 | --- | --- | --- |
 | `PORT` | `4000` | Preferred port for the API server; if it is occupied, the server will automatically select the next available port |
-| `HOST` | `0.0.0.0` | Network interface used by the API server |
+| `HOST` | `127.0.0.1` | Network interface used by the API server |
 | `DB_PATH` | `backend/data/finora.sqlite` | Path to the SQLite database |
 | `FRONTEND_ORIGIN` | `http://localhost:5173` | Comma-separated list of allowed browser origins |
 
-The default `HOST` makes the API listen on all network interfaces. For a local-only setup, set `HOST=127.0.0.1` in `backend/.env`.
+The default binds the API to loopback so it is not exposed to other devices on your network. Do not set `HOST` to a public or LAN interface unless you have added suitable authentication, transport security, and network protections.
+
+The API accepts JSON requests up to 256 KB. Transaction import validates all rows before writing and commits the batch atomically. CSV files must contain `Date,Name,Category,Type,Amount` columns and use the app's supported categories; imports are additive and do not deduplicate existing records. The JSON backup is a portable export, but restore/import of a full backup is not currently supported.
 
 ## API
 
@@ -64,8 +70,11 @@ All routes are prefixed with `/api`.
 | `GET` | `/health` | Check API availability |
 | `GET` | `/transactions` | List transactions |
 | `POST` | `/transactions` | Create a transaction |
+| `POST` | `/transactions/import` | Atomically import up to 500 validated transactions |
+| `POST` | `/transactions/bulk-delete` | Atomically delete 1–100 existing transactions |
 | `PUT` | `/transactions/:id` | Update a transaction |
 | `DELETE` | `/transactions/:id` | Delete a transaction |
+| `GET` | `/activity?limit=50` | List recent audit events (limit 1–100) |
 | `GET` | `/dashboard?period=week\|month` | Retrieve balances, period totals, cash flow, and budgets |
 | `GET` | `/budgets` | List monthly budgets |
 | `PUT` | `/budgets/:category` | Create or update a category budget |
@@ -82,6 +91,15 @@ All routes are prefixed with `/api`.
 | `POST` | `/recurring/:id/apply` | Create the next scheduled transaction and advance the date |
 
 Transaction amounts, budget limits, savings targets, and contributions are in USD. Savings goals use `name`, `targetAmount`, and `savedAmount`, with an optional `targetDate` in `YYYY-MM-DD` format. Contribution requests contain an `amount`.
+
+### Architecture and security model
+
+- `frontend/src/App.jsx` and `frontend/src/App.css` implement the responsive React dashboard and its local preferences.
+- `backend/src/server.js` exposes the Express API and stores money values as integer cents in SQLite.
+- SQLite triggers append an activity record for transaction, budget, goal, and recurring-schedule changes. The UI displays the latest 50 entries; the API supports up to 100 per request.
+- The app is designed for one trusted local user. It does not implement sign-in, sessions, role-based access, cloud sync, encryption-at-rest, or concurrent-user isolation. CORS is not authentication. Keep the database file private, back it up securely, and leave the API bound to loopback for local use.
+- API input validation, parameterized SQL, a bounded JSON body size, consistent JSON errors, and loopback binding reduce local attack surface. A remote or multi-user deployment requires an authentication/authorization layer and TLS before exposing the API.
+- There is no server-push transport: this local app refreshes data after write operations and on page load. WebSockets/SSE and email integrations are intentionally omitted because there is no remote or multi-user workflow to justify them.
 
 ## Verification
 
