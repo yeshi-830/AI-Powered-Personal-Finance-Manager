@@ -721,7 +721,7 @@ function App() {
   function exportTransactions() {
     const rows = [
       ["Date", "Name", "Category", "Type", "Amount"],
-      ...filteredTransactions.map((transaction) => [
+      ...sortedTransactions.map((transaction) => [
         transaction.date,
         transaction.name,
         transaction.category,
@@ -892,6 +892,14 @@ function App() {
               onClick={() => setNotice("You're all caught up!")}
             >
               <Bell size={19} />
+            </button>
+
+            <button
+              className="icon-button theme-button"
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+            >
+              {theme === "dark" ? <SunMedium size={18} /> : <MoonStar size={18} />}
             </button>
 
             <div className="top-avatar">MY</div>
@@ -1131,6 +1139,78 @@ function App() {
                         {insights.nextGoal ? insights.nextGoal.name : "All funded"}
                       </strong>
                       <small>{insights.headline}</small>
+                    </div>
+                  </article>
+                </div>
+              </section>
+
+              <section className="analytics-section" aria-label="Spending analytics">
+                <div className="insights-header">
+                  <div>
+                    <p className="eyebrow insight-label">
+                      <span className="live-dot" /> SPENDING ANALYTICS
+                    </p>
+                    <h2>Money in motion</h2>
+                  </div>
+                </div>
+
+                <div className="analytics-grid">
+                  <article className="panel analytics-card">
+                    <div className="analytics-card-header">
+                      <h3>Top spending categories</h3>
+                    </div>
+
+                    {categoryBreakdown.length ? (
+                      <div className="category-breakdown">
+                        {categoryBreakdown.map(({ category, amount }) => {
+                          const maxAmount = Math.max(...categoryBreakdown.map((item) => item.amount), 1);
+                          const width = Math.max((amount / maxAmount) * 100, 14);
+
+                          return (
+                            <div key={category} className="breakdown-row">
+                              <div className="breakdown-label-row">
+                                <span>{category}</span>
+                                <strong>{money(amount)}</strong>
+                              </div>
+                              <div className="breakdown-track">
+                                <span style={{ width: `${width}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="analytics-empty">No spending data yet. Add an expense to start tracking your categories.</p>
+                    )}
+                  </article>
+
+                  <article className="panel analytics-card">
+                    <div className="analytics-card-header">
+                      <h3>Projected balance</h3>
+                    </div>
+
+                    <div className="projected-balance">
+                      <strong>{money(projectedBalance)}</strong>
+                      <span>Based on current balance and scheduled cash flow</span>
+                    </div>
+
+                    <div className="upcoming-list">
+                      {recurringUpNext.length ? (
+                        recurringUpNext.map((entry) => (
+                          <div key={entry.id} className="upcoming-item">
+                            <div>
+                              <strong>{entry.name}</strong>
+                              <span>{entry.frequency}</span>
+                            </div>
+                            <em className={entry.type === "income" ? "income" : "expense"}>
+                              {entry.type === "income" ? "+" : "−"}
+                              {money(entry.amount)}
+                            </em>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="analytics-empty">No recurring money movement scheduled.</p>
+                      )}
                     </div>
                   </article>
                 </div>
@@ -1473,6 +1553,20 @@ function App() {
                   ))}
                 </select>
               </label>
+              <label>
+                <span>Sort</span>
+                <select
+                  aria-label="Sort transactions"
+                  value={sortKey}
+                  onChange={(event) => setSortKey(event.target.value)}
+                >
+                  <option value="date-desc">Newest first</option>
+                  <option value="date-asc">Oldest first</option>
+                  <option value="amount-desc">Highest amount</option>
+                  <option value="amount-asc">Lowest amount</option>
+                  <option value="name">Name</option>
+                </select>
+              </label>
               {(categoryFilter !== "all" || typeFilter !== "all" || search) && (
                 <button
                   className="clear-filters"
@@ -1486,7 +1580,7 @@ function App() {
                 </button>
               )}
               <span className="filter-result-count">
-                {filteredTransactions.length} {filteredTransactions.length === 1 ? "result" : "results"}
+                {sortedTransactions.length} {sortedTransactions.length === 1 ? "result" : "results"}
               </span>
             </div>
 
@@ -1509,12 +1603,12 @@ function App() {
                         Loading your transactions…
                       </td>
                     </tr>
-                  ) : filteredTransactions.length ? (
-                    filteredTransactions
+                  ) : sortedTransactions.length ? (
+                    sortedTransactions
                       .slice(
                         0,
                         activeNav === "Transactions"
-                          ? filteredTransactions.length
+                          ? sortedTransactions.length
                           : 6
                       )
                       .map((item) => {
@@ -1590,12 +1684,12 @@ function App() {
               <span>
                 Showing{" "}
                 {Math.min(
-                  filteredTransactions.length,
+                  sortedTransactions.length,
                   activeNav === "Transactions"
-                    ? filteredTransactions.length
+                    ? sortedTransactions.length
                     : 6
                 )}{" "}
-                of {filteredTransactions.length} transactions
+                of {sortedTransactions.length} transactions
               </span>
 
               <button
