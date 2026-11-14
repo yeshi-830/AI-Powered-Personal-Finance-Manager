@@ -7,7 +7,7 @@ Finora is a local-first personal finance manager for tracking transactions, mont
 - Record, edit, search, and delete income and expense transactions
 - Search across transactions, budgets, savings goals, and recurring schedules
 - Filter transactions by date, category, and type; sort, paginate, and bulk-delete up to 100 records at a time
-- Import up to 500 transactions from a validated CSV file and export CSV reports
+- Import up to 500 transactions from a validated CSV file and export CSV reports with spreadsheet-formula injection protection
 - Create and manage monthly category budgets
 - Set savings goals, track progress, and record contributions
 - Review your lifetime balance, weekly or monthly totals, and daily cash flow

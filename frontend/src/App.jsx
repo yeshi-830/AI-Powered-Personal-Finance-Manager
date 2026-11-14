@@ -9,6 +9,7 @@ import {
   MoonStar, SunMedium, FileUp, FileText, History
 } from "lucide-react";
 import "./App.css";
+import { serializeCsv } from "./csv.js";
 
 const CashflowChart = lazy(() => import("./CashflowChart.jsx"));
 
@@ -1048,15 +1049,7 @@ function App() {
       ]),
     ];
 
-    const csv = rows
-      .map((row) =>
-        row
-          .map((value) =>
-            `"${String(value).replaceAll('"', '""')}"`
-          )
-          .join(",")
-      )
-      .join("\r\n");
+    const csv = serializeCsv(rows);
 
     const url = URL.createObjectURL(
       new Blob([csv], { type: "text/csv;charset=utf-8" })
