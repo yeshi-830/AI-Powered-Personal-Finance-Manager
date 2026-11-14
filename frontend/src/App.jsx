@@ -1991,10 +1991,38 @@ function App() {
               </span>
             </div>
 
+            {activeNav === "Transactions" && selectedIds.length > 0 && (
+              <div className="bulk-actions" role="status">
+                <span>{selectedIds.length} selected</span>
+                <button
+                  className="button-secondary small-button bulk-delete-button"
+                  onClick={deleteSelectedTransactions}
+                  disabled={saving}
+                >
+                  <Trash2 size={14} /> Delete selected
+                </button>
+              </div>
+            )}
+
             <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
+                    {activeNav === "Transactions" && (
+                      <th>
+                        <input
+                          type="checkbox"
+                          aria-label="Select all transactions on this page"
+                          checked={pageTransactions.length > 0 && pageTransactions.every((item) => selectedIds.includes(item.id))}
+                          onChange={(event) => {
+                            const pageIds = pageTransactions.map((item) => item.id);
+                            setSelectedIds((current) => event.target.checked
+                              ? [...new Set([...current, ...pageIds])]
+                              : current.filter((id) => !pageIds.includes(id)));
+                          }}
+                        />
+                      </th>
+                    )}
                     <th>TRANSACTION</th>
                     <th>CATEGORY</th>
                     <th>DATE</th>
@@ -2006,24 +2034,29 @@ function App() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="5" className="empty-state">
+                      <td colSpan={activeNav === "Transactions" ? 6 : 5} className="empty-state">
                         Loading your transactions…
                       </td>
                     </tr>
                   ) : sortedTransactions.length ? (
-                    sortedTransactions
-                      .slice(
-                        0,
-                        activeNav === "Transactions"
-                          ? sortedTransactions.length
-                          : 6
-                      )
-                      .map((item) => {
+                    visibleTransactions.map((item) => {
                         const Icon =
                           categoryIcons[item.category] ?? Wallet;
 
                         return (
                           <tr key={item.id}>
+                            {activeNav === "Transactions" && (
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Select ${item.name}`}
+                                  checked={selectedIds.includes(item.id)}
+                                  onChange={(event) => setSelectedIds((current) => event.target.checked
+                                    ? [...current, item.id]
+                                    : current.filter((id) => id !== item.id))}
+                                />
+                              </td>
+                            )}
                             <td>
                               <div className="transaction-name">
                                 <div
@@ -2076,8 +2109,8 @@ function App() {
                       })
                   ) : (
                     <tr>
-                      <td colSpan="5" className="empty-state">
-                        {search || categoryFilter !== "all" || typeFilter !== "all"
+                      <td colSpan={activeNav === "Transactions" ? 6 : 5} className="empty-state">
+                        {search || categoryFilter !== "all" || typeFilter !== "all" || dateFrom || dateTo
                           ? "No transactions match these filters."
                           : "No transactions yet. Add one to start tracking your finances."}
                       </td>
@@ -2091,20 +2124,42 @@ function App() {
               <span>
                 Showing{" "}
                 {Math.min(
-                  sortedTransactions.length,
+                  visibleTransactions.length,
                   activeNav === "Transactions"
-                    ? sortedTransactions.length
+                    ? pageSize
                     : 6
                 )}{" "}
                 of {sortedTransactions.length} transactions
               </span>
 
-              <button
-                className="button-secondary small-button"
-                onClick={() => openTransaction()}
-              >
-                <Plus size={15} /> Add new
-              </button>
+              {activeNav === "Transactions" && pageCount > 1 ? (
+                <div className="pagination-controls" aria-label="Transaction pages">
+                  <button
+                    className="button-secondary small-button"
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    disabled={currentPage === 1}
+                    aria-label="Previous page"
+                  >
+                    Previous
+                  </button>
+                  <span>Page {currentPage} of {pageCount}</span>
+                  <button
+                    className="button-secondary small-button"
+                    onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+                    disabled={currentPage === pageCount}
+                    aria-label="Next page"
+                  >
+                    Next
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="button-secondary small-button"
+                  onClick={() => openTransaction()}
+                >
+                  <Plus size={15} /> Add new
+                </button>
+              )}
             </div>
           </section>}
 
