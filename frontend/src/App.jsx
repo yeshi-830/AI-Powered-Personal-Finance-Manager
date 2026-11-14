@@ -347,15 +347,16 @@ function App() {
 
   const pageSize = 20;
   const pageCount = Math.max(1, Math.ceil(sortedTransactions.length / pageSize));
-  const pageTransactions = sortedTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pageIndex = Math.min(currentPage, pageCount);
+  const pageTransactions = sortedTransactions.slice((pageIndex - 1) * pageSize, pageIndex * pageSize);
   const visibleTransactions = activeNav === "Transactions"
     ? pageTransactions
     : sortedTransactions.slice(0, 6);
 
-  useEffect(() => {
+  function resetTransactionSelection() {
     setCurrentPage(1);
     setSelectedIds([]);
-  }, [activeNav, search, categoryFilter, typeFilter, sortKey, dateFrom, dateTo, transactions.length]);
+  }
 
   const budgets = useMemo(
     () => dashboardData?.budgets ?? [],
@@ -711,6 +712,7 @@ function App() {
   }
 
   function openGlobalSearchResult(result) {
+    resetTransactionSelection();
     setActiveNav(result.nav);
     setSearch(result.type === "transaction" ? result.label : "");
     setSearchOpen(false);
@@ -932,6 +934,7 @@ function App() {
         method: "DELETE",
       });
 
+      setSelectedIds((current) => current.filter((id) => id !== transaction.id));
       setNotice("Transaction deleted.");
       await refreshData();
     } catch (requestError) {
@@ -1129,6 +1132,7 @@ function App() {
               className={`nav-link ${activeNav === label ? "active" : ""}`}
               aria-current={activeNav === label ? "page" : undefined}
               onClick={() => {
+                resetTransactionSelection();
                 setActiveNav(label);
                 setMobileMenu(false);
               }}
@@ -1161,6 +1165,7 @@ function App() {
           </p>
 
           <button onClick={() => {
+            resetTransactionSelection();
             setActiveNav("Budgets");
             setMobileMenu(false);
           }}>
@@ -1173,6 +1178,7 @@ function App() {
             className={`nav-link ${activeNav === "Settings" ? "active" : ""}`}
             aria-current={activeNav === "Settings" ? "page" : undefined}
             onClick={() => {
+              resetTransactionSelection();
               setActiveNav("Settings");
               setMobileMenu(false);
             }}
@@ -1227,6 +1233,7 @@ function App() {
                   value={search}
                   onFocus={() => setSearchOpen(true)}
                   onChange={(event) => {
+                    resetTransactionSelection();
                     setSearch(event.target.value);
                     setActiveNav("Transactions");
                     setSearchOpen(true);
@@ -2015,7 +2022,10 @@ function App() {
                 <select
                   aria-label="Filter by transaction type"
                   value={typeFilter}
-                  onChange={(event) => setTypeFilter(event.target.value)}
+                  onChange={(event) => {
+                    resetTransactionSelection();
+                    setTypeFilter(event.target.value);
+                  }}
                 >
                   <option value="all">All activity</option>
                   <option value="income">Income</option>
@@ -2027,7 +2037,10 @@ function App() {
                 <select
                   aria-label="Filter by category"
                   value={categoryFilter}
-                  onChange={(event) => setCategoryFilter(event.target.value)}
+                  onChange={(event) => {
+                    resetTransactionSelection();
+                    setCategoryFilter(event.target.value);
+                  }}
                 >
                   <option value="all">All categories</option>
                   <option value="Income">Income</option>
@@ -2041,7 +2054,10 @@ function App() {
                 <select
                   aria-label="Sort transactions"
                   value={sortKey}
-                  onChange={(event) => setSortKey(event.target.value)}
+                  onChange={(event) => {
+                    resetTransactionSelection();
+                    setSortKey(event.target.value);
+                  }}
                 >
                   <option value="date-desc">Newest first</option>
                   <option value="date-asc">Oldest first</option>
@@ -2056,7 +2072,10 @@ function App() {
                   type="date"
                   aria-label="Filter from date"
                   value={dateFrom}
-                  onChange={(event) => setDateFrom(event.target.value)}
+                  onChange={(event) => {
+                    resetTransactionSelection();
+                    setDateFrom(event.target.value);
+                  }}
                 />
               </label>
               <label>
@@ -2065,13 +2084,17 @@ function App() {
                   type="date"
                   aria-label="Filter to date"
                   value={dateTo}
-                  onChange={(event) => setDateTo(event.target.value)}
+                  onChange={(event) => {
+                    resetTransactionSelection();
+                    setDateTo(event.target.value);
+                  }}
                 />
               </label>
               {(categoryFilter !== "all" || typeFilter !== "all" || search || dateFrom || dateTo) && (
                 <button
                   className="clear-filters"
                   onClick={() => {
+                    resetTransactionSelection();
                     setSearch("");
                     setTypeFilter("all");
                     setCategoryFilter("all");
@@ -2231,17 +2254,17 @@ function App() {
                 <div className="pagination-controls" aria-label="Transaction pages">
                   <button
                     className="button-secondary small-button"
-                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(Math.max(1, pageIndex - 1))}
+                    disabled={pageIndex === 1}
                     aria-label="Previous page"
                   >
                     Previous
                   </button>
-                  <span>Page {currentPage} of {pageCount}</span>
+                  <span>Page {pageIndex} of {pageCount}</span>
                   <button
                     className="button-secondary small-button"
-                    onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
-                    disabled={currentPage === pageCount}
+                    onClick={() => setCurrentPage(Math.min(pageCount, pageIndex + 1))}
+                    disabled={pageIndex === pageCount}
                     aria-label="Next page"
                   >
                     Next
