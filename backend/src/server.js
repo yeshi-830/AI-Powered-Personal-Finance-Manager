@@ -53,6 +53,76 @@ function createDatabase(databasePath = path.join(__dirname, "..", "data", "finor
       last_generated TEXT,
       active INTEGER NOT NULL DEFAULT 1
     );
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id INTEGER PRIMARY KEY,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      occurred_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS activity_log_occurred_idx
+      ON activity_log(occurred_at DESC, id DESC);
+    CREATE TRIGGER IF NOT EXISTS transactions_audit_insert
+    AFTER INSERT ON transactions BEGIN
+      INSERT INTO activity_log (entity_type, entity_id, action, summary)
+      VALUES ('transaction', CAST(NEW.id AS TEXT), 'created', 'Transaction created');
+    END;
+    CREATE TRIGGER IF NOT EXISTS transactions_audit_update
+    AFTER UPDATE ON transactions BEGIN
+      INSERT INTO activity_log (entity_type, entity_id, action, summary)
+      VALUES ('transaction', CAST(NEW.id AS TEXT), 'updated', 'Transaction updated');
+    END;
+    CREATE TRIGGER IF NOT EXISTS transactions_audit_delete
+    AFTER DELETE ON transactions BEGIN
+      INSERT INTO activity_log (entity_type, entity_id, action, summary)
+      VALUES ('transaction', CAST(OLD.id AS TEXT), 'deleted', 'Transaction deleted');
+    END;
+    CREATE TRIGGER IF NOT EXISTS budgets_audit_insert
+    AFTER INSERT ON budgets BEGIN
+      INSERT INTO activity_log (entity_type, entity_id, action, summary)
+      VALUES ('budget', NEW.category, 'created', 'Budget created');
+    END;
+    CREATE TRIGGER IF NOT EXISTS budgets_audit_update
+    AFTER UPDATE ON budgets BEGIN
+      INSERT INTO activity_log (entity_type, entity_id, action, summary)
+      VALUES ('budget', NEW.category, 'updated', 'Budget updated');
+    END;
+    CREATE TRIGGER IF NOT EXISTS budgets_audit_delete
+    AFTER DELETE ON budgets BEGIN
+      INSERT INTO activity_log (entity_type, entity_id, action, summary)
+      VALUES ('budget', OLD.category, 'deleted', 'Budget removed');
+    END;
+    CREATE TRIGGER IF NOT EXISTS goals_audit_insert
+    AFTER INSERT ON savings_goals BEGIN
+      INSERT INTO activity_log (entity_type, entity_id, action, summary)
+      VALUES ('goal', CAST(NEW.id AS TEXT), 'created', 'Savings goal created');
+    END;
+    CREATE TRIGGER IF NOT EXISTS goals_audit_update
+    AFTER UPDATE ON savings_goals BEGIN
+      INSERT INTO activity_log (entity_type, entity_id, action, summary)
+      VALUES ('goal', CAST(NEW.id AS TEXT), 'updated', 'Savings goal updated');
+    END;
+    CREATE TRIGGER IF NOT EXISTS goals_audit_delete
+    AFTER DELETE ON savings_goals BEGIN
+      INSERT INTO activity_log (entity_type, entity_id, action, summary)
+      VALUES ('goal', CAST(OLD.id AS TEXT), 'deleted', 'Savings goal deleted');
+    END;
+    CREATE TRIGGER IF NOT EXISTS recurring_audit_insert
+    AFTER INSERT ON recurring_transactions BEGIN
+      INSERT INTO activity_log (entity_type, entity_id, action, summary)
+      VALUES ('recurring', CAST(NEW.id AS TEXT), 'created', 'Recurring schedule created');
+    END;
+    CREATE TRIGGER IF NOT EXISTS recurring_audit_update
+    AFTER UPDATE ON recurring_transactions BEGIN
+      INSERT INTO activity_log (entity_type, entity_id, action, summary)
+      VALUES (
+        'recurring',
+        CAST(NEW.id AS TEXT),
+        CASE WHEN OLD.active = 1 AND NEW.active = 0 THEN 'deactivated' ELSE 'updated' END,
+        CASE WHEN OLD.active = 1 AND NEW.active = 0 THEN 'Recurring schedule removed' ELSE 'Recurring schedule updated' END
+      );
+    END;
   `);
   return database;
 }
@@ -293,6 +363,28 @@ function createApp(database) {
     response.json({ status: "ok", database: "connected" });
   });
 
+  app.get("/api/activity", (request, response) => {
+    const limit = request.query.limit === undefined ? 50 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      return response.status(400).json({ error: "Activity limit must be an integer from 1 to 100." });
+    }
+
+    const rows = database.prepare(`
+      SELECT id, entity_type, entity_id, action, summary, occurred_at
+      FROM activity_log
+      ORDER BY occurred_at DESC, id DESC
+      LIMIT ?
+    `).all(limit);
+    response.json(rows.map((row) => ({
+      id: row.id,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      action: row.action,
+      summary: row.summary,
+      occurredAt: row.occurred_at,
+    })));
+  });
+
   app.get("/api/transactions", (_request, response) => {
     const rows = database.prepare(`
       SELECT id, name, category, amount_cents, type, transaction_date
@@ -345,6 +437,36 @@ function createApp(database) {
     }
 
     response.status(201).json({ imported: result.value.length });
+  });
+
+  app.post("/api/transactions/bulk-delete", (request, response) => {
+    const ids = request.body?.ids;
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > 100) {
+      return response.status(400).json({ error: "Select between 1 and 100 transactions to delete." });
+    }
+    if (ids.some((id) => !Number.isSafeInteger(id) || id < 1) || new Set(ids).size !== ids.length) {
+      return response.status(400).json({ error: "Transaction IDs must be unique positive integers." });
+    }
+
+    const placeholders = ids.map(() => "?").join(", ");
+    const existing = database.prepare(
+      `SELECT COUNT(*) AS count FROM transactions WHERE id IN (${placeholders})`
+    ).get(...ids).count;
+    if (existing !== ids.length) {
+      return response.status(404).json({ error: "One or more selected transactions were not found." });
+    }
+
+    const remove = database.prepare(`DELETE FROM transactions WHERE id IN (${placeholders})`);
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      remove.run(...ids);
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
+
+    response.json({ deleted: ids.length });
   });
 
   app.put("/api/transactions/:id", (request, response) => {
