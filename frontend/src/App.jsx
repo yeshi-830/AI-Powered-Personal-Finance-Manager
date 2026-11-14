@@ -710,6 +710,12 @@ function App() {
     setModal({ type: "csv-import" });
   }
 
+  function openGlobalSearchResult(result) {
+    setActiveNav(result.nav);
+    setSearch(result.type === "transaction" ? result.label : "");
+    setSearchOpen(false);
+  }
+
   async function handleCsvFile(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -1209,19 +1215,52 @@ function App() {
           </div>
 
           <div className="topbar-actions">
-            <label className="search-box">
-              <Search size={17} />
+            <div className="search-wrap">
+              <label className="search-box">
+                <Search size={17} />
 
-              <input
-                aria-label="Search transactions"
-                placeholder="Search transactions..."
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setActiveNav("Transactions");
-                }}
-              />
-            </label>
+                <input
+                  aria-label="Search all finance records"
+                  aria-controls="global-search-results"
+                  aria-expanded={searchOpen && Boolean(search.trim())}
+                  placeholder="Search Finora..."
+                  value={search}
+                  onFocus={() => setSearchOpen(true)}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setActiveNav("Transactions");
+                    setSearchOpen(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") setSearchOpen(false);
+                    if (event.key === "Enter" && globalResults[0]) {
+                      event.preventDefault();
+                      openGlobalSearchResult(globalResults[0]);
+                    }
+                  }}
+                />
+              </label>
+              {searchOpen && search.trim() && (
+                <div className="search-results" id="global-search-results" role="listbox" aria-label="Search results">
+                  {globalResults.length ? globalResults.map((result) => (
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected="false"
+                      key={result.id}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => openGlobalSearchResult(result)}
+                    >
+                      <span>{result.label}</span>
+                      <small>{result.detail}</small>
+                      <em>{result.nav}</em>
+                    </button>
+                  )) : (
+                    <p role="status">No matching finance records.</p>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="notification-wrap">
               <button
