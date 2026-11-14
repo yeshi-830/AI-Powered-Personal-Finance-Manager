@@ -6,7 +6,7 @@ import {
   CreditCard, PiggyBank, TrendingUp, Menu, X, ChevronDown,
   Utensils, Car, ShoppingBag, Briefcase, HeartPulse,
   Pencil, Trash2, Download, Sparkles, CalendarRange,
-  MoonStar, SunMedium, FileUp, FileText
+  MoonStar, SunMedium, FileUp, FileText, History
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -54,6 +54,13 @@ function displayDate(value) {
     day: "2-digit",
     year: "numeric",
   });
+}
+
+function displayTimestamp(value) {
+  const date = new Date(`${value.replace(" ", "T")}Z`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 }
 
 function parseTransactionsCsv(text) {
@@ -144,20 +151,22 @@ async function request(path, options) {
 }
 
 async function fetchAppData(period) {
-  const [transactions, dashboard, goals, recurring] = await Promise.all([
+  const [transactions, dashboard, goals, recurring, activity] = await Promise.all([
     request("/api/transactions"),
     request(`/api/dashboard?period=${period}`),
     request("/api/goals"),
     request("/api/recurring"),
+    request("/api/activity?limit=50"),
   ]);
 
-  return { transactions, dashboard, goals, recurring };
+  return { transactions, dashboard, goals, recurring, activity };
 }
 
 function App() {
   const [transactions, setTransactions] = useState([]);
   const [goals, setGoals] = useState([]);
   const [recurring, setRecurring] = useState([]);
+  const [activity, setActivity] = useState([]);
   const [dashboardData, setDashboardData] = useState(null);
   const [activeNav, setActiveNav] = useState("Overview");
   const [period, setPeriod] = useState("week");
@@ -217,12 +226,14 @@ function App() {
         dashboard: nextDashboard,
         goals: nextGoals,
         recurring: nextRecurring,
+        activity: nextActivity,
       } = await fetchAppData(period);
 
       setTransactions(nextTransactions);
       setDashboardData(nextDashboard);
       setGoals(nextGoals);
       setRecurring(nextRecurring);
+      setActivity(nextActivity);
       setError("");
     } catch (requestError) {
       setError(requestError.message);
@@ -235,13 +246,14 @@ function App() {
     let cancelled = false;
 
     fetchAppData(period)
-      .then(({ transactions: nextTransactions, dashboard: nextDashboard, goals: nextGoals, recurring: nextRecurring }) => {
+      .then(({ transactions: nextTransactions, dashboard: nextDashboard, goals: nextGoals, recurring: nextRecurring, activity: nextActivity }) => {
         if (cancelled) return;
 
         setTransactions(nextTransactions);
         setDashboardData(nextDashboard);
         setGoals(nextGoals);
         setRecurring(nextRecurring);
+        setActivity(nextActivity);
         setError("");
       })
       .catch((requestError) => {
@@ -949,6 +961,7 @@ function App() {
     { label: "Budgets", icon: Wallet },
     { label: "Savings goals", icon: Target },
     { label: "Recurring", icon: CalendarRange },
+    { label: "Activity", icon: History },
   ];
 
   return (

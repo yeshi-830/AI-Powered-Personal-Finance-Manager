@@ -145,6 +145,50 @@ test("transaction CSV imports validate every row and commit atomically", async (
   assert.equal(oversizedImport.status, 400);
 });
 
+test("bulk transaction deletion is all-or-nothing and writes an activity trail", async (t) => {
+  const database = createDatabase(":memory:");
+  t.after(() => database.close());
+  const baseUrl = await startServer(database, t);
+  const headers = { "Content-Type": "application/json" };
+  const transactions = ["First record", "Second record"].map((name) => ({
+    name,
+    category: "Other",
+    type: "expense",
+    amount: 10,
+    date: localDate(),
+  }));
+  const importResponse = await fetch(`${baseUrl}/api/transactions/import`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ transactions }),
+  });
+  assert.equal(importResponse.status, 201);
+  const created = await (await fetch(`${baseUrl}/api/transactions`)).json();
+
+  const partialDelete = await fetch(`${baseUrl}/api/transactions/bulk-delete`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ ids: [created[0].id, 99999] }),
+  });
+  assert.equal(partialDelete.status, 404);
+  assert.equal((await (await fetch(`${baseUrl}/api/transactions`)).json()).length, 2);
+
+  const deleteResponse = await fetch(`${baseUrl}/api/transactions/bulk-delete`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ ids: created.map((item) => item.id) }),
+  });
+  assert.equal(deleteResponse.status, 200);
+  assert.deepEqual(await deleteResponse.json(), { deleted: 2 });
+
+  const activityResponse = await fetch(`${baseUrl}/api/activity?limit=4`);
+  const activity = await activityResponse.json();
+  assert.equal(activity.length, 4);
+  assert.deepEqual(activity.slice(0, 2).map((item) => item.action), ["deleted", "deleted"]);
+  assert.deepEqual(activity.slice(2).map((item) => item.action), ["created", "created"]);
+  assert.ok(activity.every((item) => item.entityType === "transaction"));
+});
+
 test("savings goal API validates, updates, lists, and deletes goals", async (t) => {
   const database = createDatabase(":memory:");
   t.after(() => database.close());
