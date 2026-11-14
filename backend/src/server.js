@@ -9,6 +9,7 @@ require("dotenv").config();
 const categories = ["Food & Dining", "Transportation", "Shopping", "Healthcare", "Other"];
 const allowedTypes = ["income", "expense"];
 const recurringFrequencies = ["weekly", "monthly", "yearly"];
+const MAX_IMPORT_ROWS = 500;
 
 function createDatabase(databasePath = path.join(__dirname, "..", "data", "finora.sqlite")) {
   if (databasePath !== ":memory:") {
@@ -212,6 +213,29 @@ function validateTransaction(body) {
   };
 }
 
+function validateTransactionImport(body) {
+  if (!body || typeof body !== "object" || !Array.isArray(body.transactions)) {
+    return { error: "A transactions array is required." };
+  }
+  if (body.transactions.length === 0) {
+    return { error: "Choose a CSV file containing at least one transaction." };
+  }
+  if (body.transactions.length > MAX_IMPORT_ROWS) {
+    return { error: `A maximum of ${MAX_IMPORT_ROWS} transactions can be imported at once.` };
+  }
+
+  const transactions = [];
+  for (let index = 0; index < body.transactions.length; index += 1) {
+    const result = validateTransaction(body.transactions[index]);
+    if (result.error) {
+      return { error: `Row ${index + 2}: ${result.error}` };
+    }
+    transactions.push(result.value);
+  }
+
+  return { value: transactions };
+}
+
 function transactionRow(row) {
   return {
     id: row.id,
@@ -253,7 +277,7 @@ function findAvailablePort(port = Number(process.env.PORT || 4000)) {
       reject(error);
     });
 
-    tester.listen(port, "0.0.0.0", () => {
+    tester.listen(port, process.env.HOST || "127.0.0.1", () => {
       tester.close(() => resolve(port));
     });
   });
@@ -263,7 +287,7 @@ function createApp(database) {
   const app = express();
   const allowedOrigins = (process.env.FRONTEND_ORIGIN || "http://localhost:5173").split(",");
   app.use(cors({ origin: allowedOrigins }));
-  app.use(express.json({ limit: "20kb" }));
+  app.use(express.json({ limit: "256kb" }));
 
   app.get("/api/health", (_request, response) => {
     response.json({ status: "ok", database: "connected" });
@@ -292,6 +316,35 @@ function createApp(database) {
       FROM transactions WHERE id = ?
     `).get(Number(inserted.lastInsertRowid));
     response.status(201).json(transactionRow(row));
+  });
+
+  app.post("/api/transactions/import", (request, response) => {
+    const result = validateTransactionImport(request.body);
+    if (result.error) return response.status(400).json({ error: result.error });
+
+    const insert = database.prepare(`
+      INSERT INTO transactions (name, category, amount_cents, type, transaction_date)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      for (const transaction of result.value) {
+        insert.run(
+          transaction.name,
+          transaction.category,
+          transaction.amountCents,
+          transaction.type,
+          transaction.transactionDate
+        );
+      }
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
+
+    response.status(201).json({ imported: result.value.length });
   });
 
   app.put("/api/transactions/:id", (request, response) => {
@@ -642,7 +695,7 @@ if (require.main === module) {
   const database = createDatabase(process.env.DB_PATH || path.join(__dirname, "..", "data", "finora.sqlite"));
   const app = createApp(database);
   const requestedPort = Number(process.env.PORT || 4000);
-  const host = process.env.HOST || "0.0.0.0";
+  const host = process.env.HOST || "127.0.0.1";
 
   findAvailablePort(requestedPort)
     .then((port) => {

@@ -6,7 +6,7 @@ import {
   CreditCard, PiggyBank, TrendingUp, Menu, X, ChevronDown,
   Utensils, Car, ShoppingBag, Briefcase, HeartPulse,
   Pencil, Trash2, Download, Sparkles, CalendarRange,
-  MoonStar, SunMedium
+  MoonStar, SunMedium, FileUp, FileText
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -38,8 +38,7 @@ const money = (value) =>
     maximumFractionDigits: 2,
   }).format(value);
 
-function todayISO() {
-  const date = new Date();
+function todayISO(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
@@ -49,6 +48,70 @@ function displayDate(value) {
     day: "2-digit",
     year: "numeric",
   });
+}
+
+function parseTransactionsCsv(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+
+    if (quoted) {
+      if (character === '"' && text[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else if (character === '"') {
+        quoted = false;
+      } else {
+        cell += character;
+      }
+      continue;
+    }
+
+    if (character === '"' && cell.length === 0) {
+      quoted = true;
+    } else if (character === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (character === "\r" || character === "\n") {
+      row.push(cell);
+      if (row.some((value) => value.trim())) rows.push(row);
+      row = [];
+      cell = "";
+      if (character === "\r" && text[index + 1] === "\n") index += 1;
+    } else {
+      cell += character;
+    }
+  }
+
+  if (quoted) throw new Error("The CSV file contains an unfinished quoted field.");
+  row.push(cell);
+  if (row.some((value) => value.trim())) rows.push(row);
+
+  if (rows.length < 2) throw new Error("The CSV file needs a header row and at least one transaction.");
+
+  const headers = rows[0].map((header) => header.replace(/^\uFEFF/, "").trim().toLowerCase());
+  const columns = ["date", "name", "category", "type", "amount"].map((header) => headers.indexOf(header));
+  if (columns.some((column) => column < 0)) {
+    throw new Error("CSV headers must include Date, Name, Category, Type, and Amount.");
+  }
+
+  const transactions = rows.slice(1).map((values) => ({
+    date: values[columns[0]]?.trim() ?? "",
+    name: values[columns[1]]?.trim() ?? "",
+    category: values[columns[2]]?.trim() ?? "",
+    type: values[columns[3]]?.trim().toLowerCase() ?? "",
+    amount: Number(values[columns[4]]?.trim()),
+  }));
+
+  if (transactions.length > 500) {
+    throw new Error("A maximum of 500 transactions can be imported at once.");
+  }
+
+  return transactions;
 }
 
 // Empty by default for local development.
@@ -94,12 +157,16 @@ function App() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [sortKey, setSortKey] = useState("date-desc");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [theme, setTheme] = useState(() => {
     const savedTheme = window.localStorage.getItem("finora-theme");
     return savedTheme || "light";
   });
   const [modal, setModal] = useState(null);
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [csvPreview, setCsvPreview] = useState(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -193,9 +260,11 @@ function App() {
           .includes(search.toLowerCase())
       ).filter((item) =>
         (categoryFilter === "all" || item.category === categoryFilter) &&
-        (typeFilter === "all" || item.type === typeFilter)
+        (typeFilter === "all" || item.type === typeFilter) &&
+        (!dateFrom || item.date >= dateFrom) &&
+        (!dateTo || item.date <= dateTo)
       ),
-    [transactions, search, categoryFilter, typeFilter]
+    [transactions, search, categoryFilter, typeFilter, dateFrom, dateTo]
   );
 
   const sortedTransactions = useMemo(() => {
@@ -289,6 +358,45 @@ function App() {
     () => [...recurring].sort((first, second) => new Date(first.nextDate) - new Date(second.nextDate)).slice(0, 3),
     [recurring]
   );
+
+  const notificationItems = useMemo(() => {
+    const items = [];
+    const today = todayISO();
+    const weekAhead = new Date();
+    weekAhead.setDate(weekAhead.getDate() + 7);
+    const lastDate = todayISO(weekAhead);
+
+    budgets.forEach((budget) => {
+      if (budget.limit > 0 && budget.spent >= budget.limit) {
+        items.push({
+          id: `budget-${budget.category}`,
+          title: `${budget.category} budget reached`,
+          detail: `${money(budget.spent - budget.limit)} over its monthly limit`,
+          tone: "warning",
+        });
+      } else if (budget.limit > 0 && budget.spent >= budget.limit * 0.8) {
+        items.push({
+          id: `budget-${budget.category}`,
+          title: `${budget.category} budget is nearly full`,
+          detail: `${money(budget.limit - budget.spent)} remaining this month`,
+          tone: "warning",
+        });
+      }
+    });
+
+    recurring
+      .filter((entry) => entry.nextDate <= lastDate)
+      .forEach((entry) => {
+        items.push({
+          id: `recurring-${entry.id}`,
+          title: `${entry.name} is due`,
+          detail: `${entry.nextDate < today ? "Overdue" : `Due ${displayDate(entry.nextDate)}`} · ${money(entry.amount)}`,
+          tone: "info",
+        });
+      });
+
+    return items.slice(0, 6);
+  }, [budgets, recurring]);
 
   const projectedBalance = useMemo(() => {
     const scheduledImpact = recurring.reduce((sum, entry) => sum + (entry.type === "income" ? entry.amount : -entry.amount), 0);

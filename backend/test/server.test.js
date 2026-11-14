@@ -94,6 +94,57 @@ test("transaction, budget, and dashboard APIs validate and calculate real data",
   assert.deepEqual((await listResponse.json()).map((transaction) => transaction.name), ["Paycheck"]);
 });
 
+test("transaction CSV imports validate every row and commit atomically", async (t) => {
+  const database = createDatabase(":memory:");
+  t.after(() => database.close());
+  const baseUrl = await startServer(database, t);
+  const headers = { "Content-Type": "application/json" };
+  const validTransaction = {
+    name: "Imported purchase",
+    category: "Shopping",
+    type: "expense",
+    amount: 24.5,
+    date: localDate(),
+  };
+
+  const importResponse = await fetch(`${baseUrl}/api/transactions/import`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      transactions: [
+        validTransaction,
+        { ...validTransaction, name: "Imported paycheck", category: "Income", type: "income", amount: 250 },
+      ],
+    }),
+  });
+  assert.equal(importResponse.status, 201);
+  assert.deepEqual(await importResponse.json(), { imported: 2 });
+  const listResponse = await fetch(`${baseUrl}/api/transactions`);
+  assert.deepEqual((await listResponse.json()).map((item) => item.name), ["Imported paycheck", "Imported purchase"]);
+
+  const invalidImport = await fetch(`${baseUrl}/api/transactions/import`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      transactions: [
+        { ...validTransaction, name: "Would be partial" },
+        { ...validTransaction, name: "", amount: 10 },
+      ],
+    }),
+  });
+  assert.equal(invalidImport.status, 400);
+  assert.match((await invalidImport.json()).error, /Row 3/);
+  const unchangedList = await fetch(`${baseUrl}/api/transactions`);
+  assert.equal((await unchangedList.json()).length, 2);
+
+  const oversizedImport = await fetch(`${baseUrl}/api/transactions/import`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ transactions: Array.from({ length: 501 }, () => validTransaction) }),
+  });
+  assert.equal(oversizedImport.status, 400);
+});
+
 test("savings goal API validates, updates, lists, and deletes goals", async (t) => {
   const database = createDatabase(":memory:");
   t.after(() => database.close());
