@@ -1,18 +1,16 @@
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Target, Settings,
   Bell, Search, Plus, ArrowUpRight, ArrowDownRight,
-  CreditCard, PiggyBank, TrendingUp, Menu, X, ChevronDown,
+  CreditCard, PiggyBank, TrendingUp, Menu, X,
   Utensils, Car, ShoppingBag, Briefcase, HeartPulse,
   Pencil, Trash2, Download, Sparkles, CalendarRange,
   MoonStar, SunMedium, FileUp, FileText, History
 } from "lucide-react";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
-} from "recharts";
 import "./App.css";
+
+const CashflowChart = lazy(() => import("./CashflowChart.jsx"));
 
 const categories = [
   "Food & Dining",
@@ -1737,136 +1735,17 @@ function App() {
 
           {(activeNav === "Overview" || activeNav === "Budgets") && (
           <section className={`middle-grid ${activeNav === "Budgets" ? "single-panel" : ""}`}>
-            {activeNav === "Overview" && <article className="panel chart-panel">
-              <div className="panel-heading">
-                <div>
-                  <h2>Cash flow</h2>
-                  <p>Track your income and expenses</p>
-                </div>
-
-                <button
-                  className="select-button"
-                  onClick={changePeriod}
-                >
-                  {period === "week" ? "This week" : "This month"}
-                  <ChevronDown size={15} />
-                </button>
-              </div>
-
-              <div className="chart-legend">
-                <span>
-                  <i className="legend-dot income-dot" /> Income{" "}
-                  <strong>{money(periodData?.income ?? 0)}</strong>
-                </span>
-
-                <span>
-                  <i className="legend-dot expense-dot" /> Expenses{" "}
-                  <strong>{money(periodData?.expenses ?? 0)}</strong>
-                </span>
-              </div>
-
-              <div className="chart-wrap">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={dashboardData?.cashflow ?? []}
-                    margin={{
-                      top: 12,
-                      right: 8,
-                      left: -16,
-                      bottom: 0,
-                    }}
-                  >
-                    <defs>
-                      <linearGradient
-                        id="incomeGradient"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="0%"
-                          stopColor="#8170f5"
-                          stopOpacity={0.22}
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor="#8170f5"
-                          stopOpacity={0.01}
-                        />
-                      </linearGradient>
-
-                      <linearGradient
-                        id="expenseGradient"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="0%"
-                          stopColor="#39b99a"
-                          stopOpacity={0.15}
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor="#39b99a"
-                          stopOpacity={0.01}
-                        />
-                      </linearGradient>
-                    </defs>
-
-                    <CartesianGrid
-                      stroke="#edf0f5"
-                      strokeDasharray="4 5"
-                      vertical={false}
-                    />
-
-                    <XAxis
-                      dataKey="label"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: "#9298a8", fontSize: 12 }}
-                      dy={10}
-                    />
-
-                    <YAxis
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: "#9298a8", fontSize: 11 }}
-                      tickFormatter={(value) => `$${value}`}
-                    />
-
-                    <Tooltip
-                      formatter={(value) => money(value)}
-                      contentStyle={{
-                        borderRadius: 12,
-                        border: "1px solid #ececf4",
-                        fontSize: 12,
-                      }}
-                    />
-
-                    <Area
-                      type="monotone"
-                      dataKey="income"
-                      name="Income"
-                      stroke="#8170f5"
-                      strokeWidth={2.5}
-                      fill="url(#incomeGradient)"
-                    />
-
-                    <Area
-                      type="monotone"
-                      dataKey="expenses"
-                      name="Expenses"
-                      stroke="#39b99a"
-                      strokeWidth={2.5}
-                      fill="url(#expenseGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </article>}
+            {activeNav === "Overview" && (
+              <Suspense fallback={<div className="panel chart-panel chart-loading" role="status">Loading cash flow chart…</div>}>
+                <CashflowChart
+                  period={period}
+                  periodData={periodData}
+                  data={dashboardData?.cashflow ?? []}
+                  onChangePeriod={changePeriod}
+                  money={money}
+                />
+              </Suspense>
+            )}
 
             <article className="panel budget-panel">
               <div className="panel-heading">
