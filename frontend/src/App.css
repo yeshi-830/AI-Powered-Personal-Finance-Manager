@@ -2104,6 +2104,75 @@ html[data-theme='dark'] .top-avatar {
   }
 }
 
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 21px 14px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.bulk-delete-button {
+  color: #b94a55;
+  border-color: #f0cdd0;
+}
+
+.bulk-delete-button:hover {
+  color: #a23c47;
+  background: #fff3f4;
+  border-color: #e7b5ba;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.transaction-panel input[type='checkbox'],
+.table-scroll input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--purple);
+  cursor: pointer;
+}
+
+.widget-options {
+  accent-color: var(--purple);
+}
+
+html[data-theme='dark'] .bulk-delete-button {
+  color: #ffc2c4;
+  background: #3a202a;
+  border-color: #75404d;
+}
+
+html[data-theme='dark'] .bulk-delete-button:hover {
+  background: #4a2934;
+}
+
+@media (max-width: 600px) {
+  .bulk-actions {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .pagination-controls {
+    gap: 6px;
+  }
+
+  .pagination-controls .button-secondary {
+    min-width: 0;
+    padding: 0 8px;
+  }
+}
+
 .onboarding-card {
   position: relative;
   display: flex;

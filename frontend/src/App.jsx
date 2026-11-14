@@ -201,6 +201,7 @@ function App() {
     () => window.localStorage.getItem("finora-onboarding-complete") !== "true"
   );
   const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [sortKey, setSortKey] = useState("date-desc");
@@ -368,6 +369,51 @@ function App() {
     [recurring]
   );
   const periodData = dashboardData?.period;
+
+  const globalResults = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return [];
+
+    return [
+      ...transactions
+        .filter((item) => `${item.name} ${item.category} ${item.type}`.toLowerCase().includes(query)
+        )
+        .map((item) => ({
+          id: `transaction-${item.id}`,
+          label: item.name,
+          detail: `${item.category} · ${money(item.amount)}`,
+          nav: "Transactions",
+          type: "transaction",
+        })),
+      ...goals
+        .filter((item) => item.name.toLowerCase().includes(query))
+        .map((item) => ({
+          id: `goal-${item.id}`,
+          label: item.name,
+          detail: `Savings goal · ${money(item.savedAmount)} saved`,
+          nav: "Savings goals",
+          type: "goal",
+        })),
+      ...recurring
+        .filter((item) => `${item.name} ${item.category}`.toLowerCase().includes(query))
+        .map((item) => ({
+          id: `recurring-${item.id}`,
+          label: item.name,
+          detail: `Recurring ${item.type} · ${money(item.amount)}`,
+          nav: "Recurring",
+          type: "recurring",
+        })),
+      ...budgets
+        .filter((item) => item.category.toLowerCase().includes(query))
+        .map((item) => ({
+          id: `budget-${item.category}`,
+          label: `${item.category} budget`,
+          detail: `${money(item.spent)} of ${money(item.limit)} spent`,
+          nav: "Budgets",
+          type: "budget",
+        })),
+    ].slice(0, 8);
+  }, [search, transactions, goals, recurring, budgets]);
 
   const totalBudget = budgets.reduce(
     (sum, budget) => sum + budget.limit,
@@ -907,6 +953,20 @@ function App() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function selectTransactions(ids, selected) {
+    const nextSelection = selected
+      ? [...new Set([...selectedIds, ...ids])]
+      : selectedIds.filter((id) => !ids.includes(id));
+
+    if (nextSelection.length > 100) {
+      setError("Select no more than 100 transactions for a bulk delete.");
+      return;
+    }
+
+    setError("");
+    setSelectedIds(nextSelection);
   }
 
   async function deleteBudget(budget) {
@@ -2016,9 +2076,7 @@ function App() {
                           checked={pageTransactions.length > 0 && pageTransactions.every((item) => selectedIds.includes(item.id))}
                           onChange={(event) => {
                             const pageIds = pageTransactions.map((item) => item.id);
-                            setSelectedIds((current) => event.target.checked
-                              ? [...new Set([...current, ...pageIds])]
-                              : current.filter((id) => !pageIds.includes(id)));
+                            selectTransactions(pageIds, event.target.checked);
                           }}
                         />
                       </th>
@@ -2051,9 +2109,7 @@ function App() {
                                   type="checkbox"
                                   aria-label={`Select ${item.name}`}
                                   checked={selectedIds.includes(item.id)}
-                                  onChange={(event) => setSelectedIds((current) => event.target.checked
-                                    ? [...current, item.id]
-                                    : current.filter((id) => id !== item.id))}
+                                  onChange={(event) => selectTransactions([item.id], event.target.checked)}
                                 />
                               </td>
                             )}
