@@ -73,6 +73,8 @@ function parseTransactionsCsv(text) {
 
     if (character === '"' && cell.length === 0) {
       quoted = true;
+    } else if (character === '"') {
+      throw new Error("The CSV file contains a quote inside an unquoted field.");
     } else if (character === ",") {
       row.push(cell);
       cell = "";
@@ -601,6 +603,7 @@ function App() {
 
   async function handleCsvFile(event) {
     const file = event.target.files?.[0];
+    event.target.value = "";
     setCsvPreview(null);
     setError("");
     if (!file) return;
@@ -2639,6 +2642,81 @@ function App() {
                   disabled={saving}
                 >
                   {saving ? "Saving…" : modal.goalId ? "Save changes" : "Create goal"}
+                </button>
+              </div>
+            </form>
+          ) : modal.type === "csv-import" ? (
+            <form className="transaction-modal csv-import-modal" onSubmit={submitCsvImport}>
+              <div className="modal-heading">
+                <div>
+                  <h2>Import transactions</h2>
+                  <p>Import up to 500 records from a Finora-compatible CSV file.</p>
+                </div>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => setModal(null)}
+                  aria-label="Close"
+                  disabled={saving}
+                >
+                  <X />
+                </button>
+              </div>
+
+              {error && (
+                <div className="form-error" role="alert">
+                  {error}
+                </div>
+              )}
+
+              <label>
+                CSV file
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  aria-label="Choose transactions CSV file"
+                  onChange={handleCsvFile}
+                  disabled={saving}
+                />
+              </label>
+
+              <p className="csv-format-hint">
+                Required columns: Date, Name, Category, Type, Amount. Expenses use the app’s categories; income uses the Income category.
+              </p>
+
+              {csvPreview && (
+                <div className="csv-preview" aria-live="polite">
+                  <strong>{csvPreview.fileName}</strong>
+                  <span>{csvPreview.transactions.length} records ready to import</span>
+                  <ul>
+                    {csvPreview.transactions.slice(0, 3).map((transaction, index) => (
+                      <li key={`${transaction.date}-${transaction.name}-${index}`}>
+                        <span>{transaction.name || "Unnamed transaction"}</span>
+                        <span>{transaction.date} · {money(Number.isFinite(transaction.amount) ? transaction.amount : 0)}</span>
+                      </li>
+                    ))}
+                    {csvPreview.transactions.length > 3 && (
+                      <li>and {csvPreview.transactions.length - 3} more…</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => setModal(null)}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="button-primary"
+                  disabled={saving || !csvPreview?.transactions.length}
+                >
+                  {saving ? "Importing…" : <><FileUp size={16} /> Import transactions</>}
                 </button>
               </div>
             </form>
