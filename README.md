@@ -6,7 +6,7 @@ Finora is a local-first personal finance manager for tracking transactions, mont
 
 - Record, edit, search, and delete income and expense transactions
 - Search across transactions, budgets, savings goals, and recurring schedules
-- Filter transactions by date, category, and type; sort, paginate, and bulk-delete
+- Filter transactions by date, category, and type; sort, paginate, and bulk-delete up to 100 records at a time
 - Import up to 500 transactions from a validated CSV file and export CSV reports
 - Create and manage monthly category budgets
 - Set savings goals, track progress, and record contributions
@@ -14,7 +14,7 @@ Finora is a local-first personal finance manager for tracking transactions, mont
 - Create recurring income and expense schedules and apply the next occurrence automatically
 - Get smart budget and goal recommendations based on your current spending pattern
 - Review budget and upcoming-payment notifications and an audit activity timeline
-- Customize dashboard widgets, switch themes, and download a portable JSON backup
+- Follow a first-run guide, customize dashboard widgets, switch themes, and download a portable JSON backup
 - Keep data in a local SQLite database between app restarts
 
 ## Requirements
@@ -98,7 +98,7 @@ Transaction amounts, budget limits, savings targets, and contributions are in US
 - `backend/src/server.js` exposes the Express API and stores money values as integer cents in SQLite.
 - SQLite triggers append an activity record for transaction, budget, goal, and recurring-schedule changes. The UI displays the latest 50 entries; the API supports up to 100 per request.
 - The app is designed for one trusted local user. It does not implement sign-in, sessions, role-based access, cloud sync, encryption-at-rest, or concurrent-user isolation. CORS is not authentication. Keep the database file private, back it up securely, and leave the API bound to loopback for local use.
-- API input validation, parameterized SQL, a bounded JSON body size, consistent JSON errors, and loopback binding reduce local attack surface. A remote or multi-user deployment requires an authentication/authorization layer and TLS before exposing the API.
+- API input validation, parameterized SQL, a bounded JSON body size, no-store responses, security headers, consistent JSON errors, and loopback binding reduce local attack surface. A remote or multi-user deployment requires an authentication/authorization layer and TLS before exposing the API.
 - There is no server-push transport: this local app refreshes data after write operations and on page load. WebSockets/SSE and email integrations are intentionally omitted because there is no remote or multi-user workflow to justify them.
 
 ## Verification

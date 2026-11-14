@@ -355,9 +355,22 @@ function findAvailablePort(port = Number(process.env.PORT || 4000)) {
 
 function createApp(database) {
   const app = express();
-  const allowedOrigins = (process.env.FRONTEND_ORIGIN || "http://localhost:5173").split(",");
+  const allowedOrigins = (process.env.FRONTEND_ORIGIN || "http://localhost:5173")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  app.disable("x-powered-by");
   app.use(cors({ origin: allowedOrigins }));
   app.use(express.json({ limit: "256kb" }));
+  app.use("/api", (_request, response, next) => {
+    response.set({
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "Referrer-Policy": "no-referrer",
+    });
+    next();
+  });
 
   app.get("/api/health", (_request, response) => {
     response.json({ status: "ok", database: "connected" });

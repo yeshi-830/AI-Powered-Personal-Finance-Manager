@@ -29,6 +29,9 @@ test("transaction, budget, and dashboard APIs validate and calculate real data",
 
   const health = await fetch(`${baseUrl}/api/health`);
   assert.deepEqual(await health.json(), { status: "ok", database: "connected" });
+  assert.equal(health.headers.get("cache-control"), "no-store");
+  assert.equal(health.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(health.headers.get("x-powered-by"), null);
 
   const invalid = await fetch(`${baseUrl}/api/transactions`, {
     method: "POST",
@@ -92,6 +95,11 @@ test("transaction, budget, and dashboard APIs validate and calculate real data",
   assert.equal(deleteResponse.status, 204);
   const listResponse = await fetch(`${baseUrl}/api/transactions`);
   assert.deepEqual((await listResponse.json()).map((transaction) => transaction.name), ["Paycheck"]);
+  const activityResponse = await fetch(`${baseUrl}/api/activity?limit=100`);
+  const activity = await activityResponse.json();
+  assert.ok(activity.some((item) => item.entityType === "budget" && item.action === "created"));
+  assert.ok(activity.some((item) => item.entityType === "transaction" && item.action === "updated"));
+  assert.ok(activity.some((item) => item.entityType === "transaction" && item.action === "deleted"));
 });
 
 test("transaction CSV imports validate every row and commit atomically", async (t) => {
