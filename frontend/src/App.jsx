@@ -42,6 +42,12 @@ function todayISO(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+function addDaysISO(value, days) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
 function displayDate(value) {
   return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
     month: "short",
@@ -155,6 +161,7 @@ function App() {
   const [dashboardData, setDashboardData] = useState(null);
   const [activeNav, setActiveNav] = useState("Overview");
   const [period, setPeriod] = useState("week");
+  const [referenceDate] = useState(todayISO);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -363,10 +370,7 @@ function App() {
 
   const notificationItems = useMemo(() => {
     const items = [];
-    const today = todayISO();
-    const weekAhead = new Date();
-    weekAhead.setDate(weekAhead.getDate() + 7);
-    const lastDate = todayISO(weekAhead);
+    const lastDate = addDaysISO(referenceDate, 7);
 
     budgets.forEach((budget) => {
       if (budget.limit > 0 && budget.spent >= budget.limit) {
@@ -387,18 +391,18 @@ function App() {
     });
 
     recurring
-      .filter((entry) => entry.nextDate <= lastDate)
+    .filter((entry) => entry.nextDate <= lastDate)
       .forEach((entry) => {
         items.push({
           id: `recurring-${entry.id}`,
           title: `${entry.name} is due`,
-          detail: `${entry.nextDate < today ? "Overdue" : `Due ${displayDate(entry.nextDate)}`} · ${money(entry.amount)}`,
+        detail: `${entry.nextDate < referenceDate ? "Overdue" : `Due ${displayDate(entry.nextDate)}`} · ${money(entry.amount)}`,
           tone: "info",
         });
       });
 
     return items.slice(0, 6);
-  }, [budgets, recurring]);
+  }, [budgets, recurring, referenceDate]);
 
   const projectedBalance = useMemo(() => {
     const scheduledImpact = recurring.reduce((sum, entry) => sum + (entry.type === "income" ? entry.amount : -entry.amount), 0);
