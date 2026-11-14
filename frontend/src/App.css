@@ -2530,3 +2530,485 @@ html[data-theme='dark'] .top-avatar {
     padding-bottom: 0;
   }
 }
+
+.notification-wrap {
+  position: relative;
+}
+
+.notification-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  place-items: center;
+  color: #fff;
+  background: #e87968;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.notification-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: -52px;
+  z-index: 40;
+  width: min(350px, calc(100vw - 28px));
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  box-shadow: 0 18px 45px rgba(28, 33, 59, 0.16);
+}
+
+.notification-panel-heading,
+.notification-item,
+.transaction-panel-actions,
+.settings-card-heading,
+.settings-data-summary,
+.theme-options {
+  display: flex;
+  align-items: center;
+}
+
+.notification-panel-heading {
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.notification-dismiss {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+}
+
+.notification-dismiss:hover {
+  background: var(--subtle);
+}
+
+.notification-list {
+  display: grid;
+  gap: 7px;
+  max-height: 330px;
+  overflow: auto;
+}
+
+.notification-item {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 11px;
+  background: var(--subtle);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.notification-item strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.notification-item span,
+.notification-empty {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.notification-item.warning {
+  border-left: 3px solid #e8a45c;
+}
+
+.notification-item.info {
+  border-left: 3px solid #8271e8;
+}
+
+.notification-empty {
+  margin: 0;
+  padding: 10px 2px 3px;
+}
+
+.transaction-panel-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.transaction-filters input {
+  min-width: 135px;
+  height: 34px;
+  padding: 0 9px;
+  color: #555b73;
+  background: #faf9ff;
+  border: 1px solid #e8e5f5;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.date-filter-error {
+  align-self: center;
+  color: #ba4d58;
+  font-size: 10px;
+}
+
+.settings-page {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 18px;
+}
+
+.settings-card {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.settings-card-heading {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.settings-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #6b5edb;
+  background: #efeaff;
+  border-radius: 11px;
+}
+
+.settings-card-heading h2 {
+  margin: 0;
+  color: #292c43;
+  font-family: 'Manrope', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.settings-card-heading p,
+.settings-note {
+  margin: 5px 0 0;
+  color: #858ba0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.theme-options {
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.theme-options button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 105px;
+  min-height: 38px;
+  padding: 0 12px;
+  color: #6d7289;
+  background: #faf9ff;
+  border: 1px solid #e8e5f5;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.theme-options button.selected {
+  color: #5e4bd0;
+  background: #f0edff;
+  border-color: #cfc7ff;
+}
+
+.settings-data-summary {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-data-summary span {
+  padding: 7px 9px;
+  color: #737991;
+  background: #f8f8fc;
+  border: 1px solid #eceef5;
+  border-radius: 7px;
+  font-size: 10px;
+}
+
+.settings-note {
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.csv-format-hint {
+  margin: -4px 0 16px;
+  color: #858ba0;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.csv-preview {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 16px;
+  padding: 12px;
+  color: var(--ink);
+  background: var(--subtle);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 11px;
+}
+
+.csv-preview > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.csv-preview ul {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 9px 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.csv-preview li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.csv-import-modal input[type='file'] {
+  min-height: 40px;
+  padding: 8px;
+}
+
+html[data-theme='dark'] body,
+html[data-theme='dark'] .main-content,
+html[data-theme='dark'] .dashboard {
+  background: var(--page);
+  color: var(--ink);
+}
+
+html[data-theme='dark'] .panel,
+html[data-theme='dark'] .stat-card,
+html[data-theme='dark'] .insight-card,
+html[data-theme='dark'] .recommendation-card,
+html[data-theme='dark'] .goal-card,
+html[data-theme='dark'] .recurring-card,
+html[data-theme='dark'] .settings-card {
+  color: var(--ink);
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: 0 5px 18px var(--shadow);
+}
+
+html[data-theme='dark'] .stat-card.balance-card {
+  background: linear-gradient(135deg, #242044, #242b48);
+}
+
+html[data-theme='dark'] .insight-card.primary,
+html[data-theme='dark'] .recommendation-card.warning,
+html[data-theme='dark'] .recommendation-card.success,
+html[data-theme='dark'] .recommendation-card.info,
+html[data-theme='dark'] .recommendation-card.neutral,
+html[data-theme='dark'] .goal-card,
+html[data-theme='dark'] .goals-summary-card,
+html[data-theme='dark'] .goals-summary-card:nth-child(2),
+html[data-theme='dark'] .goals-summary-card:nth-child(3) {
+  background: var(--surface);
+}
+
+html[data-theme='dark'] .panel-heading h2,
+html[data-theme='dark'] .modal-heading h2,
+html[data-theme='dark'] .insights-header h2,
+html[data-theme='dark'] .recommendation-copy h3,
+html[data-theme='dark'] .goal-card h2,
+html[data-theme='dark'] .goals-empty h2,
+html[data-theme='dark'] .settings-card-heading h2,
+html[data-theme='dark'] .stat-value,
+html[data-theme='dark'] .transaction-name strong,
+html[data-theme='dark'] .budget-line strong,
+html[data-theme='dark'] .goals-summary-card > strong,
+html[data-theme='dark'] .goal-amounts strong {
+  color: var(--ink);
+}
+
+html[data-theme='dark'] .panel-heading p,
+html[data-theme='dark'] .modal-heading p,
+html[data-theme='dark'] .subtitle,
+html[data-theme='dark'] .stat-top,
+html[data-theme='dark'] .stat-footer,
+html[data-theme='dark'] .recommendation-copy p,
+html[data-theme='dark'] .goal-target,
+html[data-theme='dark'] .goal-target span,
+html[data-theme='dark'] .goals-empty p,
+html[data-theme='dark'] .settings-card-heading p,
+html[data-theme='dark'] .settings-note,
+html[data-theme='dark'] .budget-line small,
+html[data-theme='dark'] .footer,
+html[data-theme='dark'] .chart-legend {
+  color: var(--muted);
+}
+
+html[data-theme='dark'] .insight-card strong,
+html[data-theme='dark'] .projected-balance strong {
+  color: var(--ink);
+}
+
+html[data-theme='dark'] .insight-card small,
+html[data-theme='dark'] .projected-balance span,
+html[data-theme='dark'] .insight-card span {
+  color: var(--muted);
+}
+
+html[data-theme='dark'] .budget-item,
+html[data-theme='dark'] .upcoming-item,
+html[data-theme='dark'] .settings-note {
+  border-color: var(--line);
+}
+
+html[data-theme='dark'] .budget-progress,
+html[data-theme='dark'] .overall-progress,
+html[data-theme='dark'] .goal-progress,
+html[data-theme='dark'] .breakdown-track {
+  background: #283147;
+}
+
+html[data-theme='dark'] .budget-tip,
+html[data-theme='dark'] .settings-data-summary span {
+  color: var(--muted);
+  background: var(--surface-alt);
+  border-color: var(--line);
+}
+
+html[data-theme='dark'] .transaction-filters select,
+html[data-theme='dark'] .transaction-filters input,
+html[data-theme='dark'] .transaction-modal input,
+html[data-theme='dark'] .transaction-modal select,
+html[data-theme='dark'] .theme-options button {
+  color: var(--ink);
+  background: var(--surface-alt);
+  border-color: var(--line);
+}
+
+html[data-theme='dark'] .transaction-modal > label {
+  color: #d7def0;
+}
+
+html[data-theme='dark'] .transaction-modal input:focus,
+html[data-theme='dark'] .transaction-modal select:focus {
+  background: #202a3f;
+}
+
+html[data-theme='dark'] .modal-backdrop {
+  background: rgba(3, 6, 14, 0.75);
+}
+
+html[data-theme='dark'] .transaction-modal {
+  color: var(--ink);
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+html[data-theme='dark'] .table-scroll {
+  background: var(--surface);
+}
+
+html[data-theme='dark'] table th {
+  color: var(--muted);
+  background: var(--surface-alt);
+}
+
+html[data-theme='dark'] table td {
+  color: var(--muted);
+  border-color: var(--line);
+}
+
+html[data-theme='dark'] .category-pill,
+html[data-theme='dark'] .theme-options button.selected {
+  color: #c4baff;
+  background: rgba(137, 117, 248, 0.16);
+  border-color: rgba(156, 141, 255, 0.25);
+}
+
+html[data-theme='dark'] .notice {
+  color: #d5ccff;
+  background: #242044;
+  border-color: #403775;
+}
+
+html[data-theme='dark'] .notice-error,
+html[data-theme='dark'] .form-error {
+  color: #ffc2c4;
+  background: #3a202a;
+  border-color: #75404d;
+}
+
+html[data-theme='dark'] .budget-empty,
+html[data-theme='dark'] .empty-state,
+html[data-theme='dark'] .date-cell {
+  color: var(--muted);
+}
+
+html[data-theme='dark'] .notification-panel {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+html[data-theme='dark'] .notification-panel-heading,
+html[data-theme='dark'] .notification-item strong {
+  color: var(--ink);
+}
+
+html[data-theme='dark'] .notification-item {
+  background: var(--surface-alt);
+  border-color: var(--line);
+}
+
+@media (max-width: 900px) {
+  .analytics-grid,
+  .settings-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .notification-panel {
+    right: -50px;
+  }
+
+  .transaction-panel-actions {
+    gap: 7px;
+  }
+
+  .transaction-panel-actions .text-action {
+    font-size: 10px;
+  }
+
+  .settings-card {
+    padding: 16px;
+  }
+
+  .csv-preview li {
+    flex-direction: column;
+    gap: 3px;
+  }
+}
