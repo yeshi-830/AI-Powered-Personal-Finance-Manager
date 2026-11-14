@@ -22,6 +22,27 @@ const categories = [
   "Other",
 ];
 
+const defaultWidgets = {
+  stats: true,
+  insights: true,
+  analytics: true,
+  recommendations: true,
+};
+
+function readDashboardWidgets() {
+  const saved = window.localStorage.getItem("finora-dashboard-widgets");
+  if (!saved) return { ...defaultWidgets };
+  try {
+    const parsed = JSON.parse(saved);
+    return Object.fromEntries(
+      Object.keys(defaultWidgets).map((key) => [key, parsed[key] !== false])
+    );
+  } catch (error) {
+    if (error instanceof SyntaxError) return { ...defaultWidgets };
+    throw error;
+  }
+}
+
 const categoryIcons = {
   "Food & Dining": Utensils,
   Transportation: Car,
@@ -171,6 +192,10 @@ function App() {
   const [activeNav, setActiveNav] = useState("Overview");
   const [period, setPeriod] = useState("week");
   const [referenceDate] = useState(todayISO);
+  const [widgets, setWidgets] = useState(readDashboardWidgets);
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => window.localStorage.getItem("finora-onboarding-complete") !== "true"
+  );
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -272,6 +297,10 @@ function App() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem("finora-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    window.localStorage.setItem("finora-dashboard-widgets", JSON.stringify(widgets));
+  }, [widgets]);
 
   const filteredTransactions = useMemo(
     () =>
