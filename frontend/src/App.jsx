@@ -5,7 +5,8 @@ import {
   Bell, Search, Plus, ArrowUpRight, ArrowDownRight,
   CreditCard, PiggyBank, TrendingUp, Menu, X, ChevronDown,
   Utensils, Car, ShoppingBag, Briefcase, HeartPulse,
-  Pencil, Trash2, Download, Sparkles, CalendarRange
+  Pencil, Trash2, Download, Sparkles, CalendarRange,
+  MoonStar, SunMedium
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -92,6 +93,11 @@ function App() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [sortKey, setSortKey] = useState("date-desc");
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = window.localStorage.getItem("finora-theme");
+    return savedTheme || "light";
+  });
   const [modal, setModal] = useState(null);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [notice, setNotice] = useState("");
@@ -159,8 +165,8 @@ function App() {
         setTransactions(nextTransactions);
         setDashboardData(nextDashboard);
         setGoals(nextGoals);
-    setRecurring(nextRecurring);
-    setError("");
+        setRecurring(nextRecurring);
+        setError("");
       })
       .catch((requestError) => {
         if (!cancelled) setError(requestError.message);
@@ -174,6 +180,11 @@ function App() {
     };
   }, [period]);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem("finora-theme", theme);
+  }, [theme]);
+
   const filteredTransactions = useMemo(
     () =>
       transactions.filter((item) =>
@@ -186,6 +197,27 @@ function App() {
       ),
     [transactions, search, categoryFilter, typeFilter]
   );
+
+  const sortedTransactions = useMemo(() => {
+    const byDate = [...filteredTransactions].sort((first, second) => {
+      const dateDelta = new Date(second.date) - new Date(first.date);
+      return dateDelta || second.id - first.id;
+    });
+
+    switch (sortKey) {
+      case "date-asc":
+        return [...filteredTransactions].sort((first, second) => new Date(first.date) - new Date(second.date));
+      case "amount-desc":
+        return [...filteredTransactions].sort((first, second) => second.amount - first.amount);
+      case "amount-asc":
+        return [...filteredTransactions].sort((first, second) => first.amount - second.amount);
+      case "name":
+        return [...filteredTransactions].sort((first, second) => first.name.localeCompare(second.name));
+      case "date-desc":
+      default:
+        return byDate;
+    }
+  }, [filteredTransactions, sortKey]);
 
   const budgets = useMemo(
     () => dashboardData?.budgets ?? [],
@@ -236,6 +268,32 @@ function App() {
           : "Every goal is fully funded.",
     };
   }, [budgets, dashboardData, goals]);
+
+  const categoryBreakdown = useMemo(() => {
+    const totals = new Map();
+
+    transactions.forEach((transaction) => {
+      if (transaction.type !== "expense") return;
+
+      const current = totals.get(transaction.category) ?? 0;
+      totals.set(transaction.category, current + transaction.amount);
+    });
+
+    return [...totals.entries()]
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((first, second) => second.amount - first.amount)
+      .slice(0, 4);
+  }, [transactions]);
+
+  const recurringUpNext = useMemo(
+    () => [...recurring].sort((first, second) => new Date(first.nextDate) - new Date(second.nextDate)).slice(0, 3),
+    [recurring]
+  );
+
+  const projectedBalance = useMemo(() => {
+    const scheduledImpact = recurring.reduce((sum, entry) => sum + (entry.type === "income" ? entry.amount : -entry.amount), 0);
+    return (dashboardData?.balance ?? 0) + scheduledImpact;
+  }, [dashboardData, recurring]);
 
   const recommendations = useMemo(() => {
     const items = [];
