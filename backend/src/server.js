@@ -4,7 +4,7 @@ const { DatabaseSync } = require("node:sqlite");
 const fs = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
-require("dotenv").config();
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const categories = ["Food & Dining", "Transportation", "Shopping", "Healthcare", "Other"];
 const allowedTypes = ["income", "expense"];

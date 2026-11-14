@@ -59,6 +59,16 @@ Backend settings can be provided through environment variables or a `backend/.en
 
 The default binds the API to loopback so it is not exposed to other devices on your network. Do not set `HOST` to a public or LAN interface unless you have added suitable authentication, transport security, and network protections.
 
+Example `backend/.env` for local use:
+
+```dotenv
+PORT=4000
+HOST=127.0.0.1
+FRONTEND_ORIGIN=http://localhost:5173
+```
+
+`DB_PATH` can be set to an absolute path when the database should live outside the default `backend/data` directory.
+
 The API accepts JSON requests up to 256 KB. Transaction import validates all rows before writing and commits the batch atomically. CSV files must contain `Date,Name,Category,Type,Amount` columns and use the app's supported categories; imports are additive and do not deduplicate existing records. The JSON backup is a portable export, but restore/import of a full backup is not currently supported.
 
 ## API
@@ -95,11 +105,13 @@ Transaction amounts, budget limits, savings targets, and contributions are in US
 ### Architecture and security model
 
 - `frontend/src/App.jsx` and `frontend/src/App.css` implement the responsive React dashboard and its local preferences.
+- `frontend/src/CashflowChart.jsx` isolates the chart library behind a lazy-loaded boundary to reduce the initial JavaScript bundle.
 - `backend/src/server.js` exposes the Express API and stores money values as integer cents in SQLite.
 - SQLite triggers append an activity record for transaction, budget, goal, and recurring-schedule changes. The UI displays the latest 50 entries; the API supports up to 100 per request.
 - The app is designed for one trusted local user. It does not implement sign-in, sessions, role-based access, cloud sync, encryption-at-rest, or concurrent-user isolation. CORS is not authentication. Keep the database file private, back it up securely, and leave the API bound to loopback for local use.
 - API input validation, parameterized SQL, a bounded JSON body size, no-store responses, security headers, consistent JSON errors, and loopback binding reduce local attack surface. A remote or multi-user deployment requires an authentication/authorization layer and TLS before exposing the API.
 - There is no server-push transport: this local app refreshes data after write operations and on page load. WebSockets/SSE and email integrations are intentionally omitted because there is no remote or multi-user workflow to justify them.
+- Transaction pagination currently happens in the browser over the locally loaded dataset. For very large ledgers or remote hosting, add server-side filtered pagination before deployment.
 
 ## Verification
 
