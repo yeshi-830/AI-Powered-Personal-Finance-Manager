@@ -361,9 +361,34 @@ function createApp(database) {
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
+  const rateLimitMax = Number(process.env.RATE_LIMIT_MAX || 120);
+
   app.disable("x-powered-by");
-  app.use(cors({ origin: allowedOrigins }));
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: false,
+  }));
+  app.use(cors({
+    origin(origin, callback) {
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Origin not allowed by CORS policy."));
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: false,
+  }));
   app.use(express.json({ limit: "256kb" }));
+  app.use("/api", rateLimit({
+    windowMs: 60 * 1000,
+    max: Number.isFinite(rateLimitMax) && rateLimitMax > 0 ? rateLimitMax : 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests. Please wait a moment and try again." },
+  }));
   app.use("/api", (_request, response, next) => {
     response.set({
       "Cache-Control": "no-store",
@@ -820,6 +845,9 @@ function createApp(database) {
     }
     if (error.type === "entity.too.large") {
       return response.status(413).json({ error: "Request body is too large." });
+    }
+    if (error && error.message === "Origin not allowed by CORS policy.") {
+      return response.status(403).json({ error: "Origin not allowed by CORS policy." });
     }
     console.error("API request failed:", error);
     response.status(500).json({ error: "An unexpected server error occurred." });
