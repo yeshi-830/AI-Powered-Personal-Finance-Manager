@@ -21,6 +21,31 @@ async function startServer(database, testContext) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
+test("security headers and rate limiting guard the API", async (t) => {
+  const previousLimit = process.env.RATE_LIMIT_MAX;
+  process.env.RATE_LIMIT_MAX = "2";
+  t.after(() => {
+    if (previousLimit === undefined) delete process.env.RATE_LIMIT_MAX;
+    else process.env.RATE_LIMIT_MAX = previousLimit;
+  });
+
+  const database = createDatabase(":memory:");
+  t.after(() => database.close());
+  const baseUrl = await startServer(database, t);
+
+  const initial = await fetch(`${baseUrl}/api/health`);
+  assert.equal(initial.headers.get("cache-control"), "no-store");
+  assert.equal(initial.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(initial.headers.get("x-frame-options"), "DENY");
+  assert.equal(initial.headers.get("x-powered-by"), null);
+
+  const allowed = await fetch(`${baseUrl}/api/health`);
+  assert.equal(allowed.status, 200);
+  const blocked = await fetch(`${baseUrl}/api/health`);
+  assert.equal(blocked.status, 429);
+  assert.match((await blocked.json()).error, /Too many requests|wait/i);
+});
+
 test("transaction, budget, and dashboard APIs validate and calculate real data", async (t) => {
   const database = createDatabase(":memory:");
   t.after(() => database.close());
