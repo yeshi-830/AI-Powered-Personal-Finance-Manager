@@ -592,22 +592,22 @@ html[data-theme='dark'] .top-avatar {
   min-height: 40px;
   padding: 0 15px;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 10px;
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
-  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
 }
 
 .button-primary {
   color: #fff;
   background: linear-gradient(135deg, #8170ed, #6b59dc);
-  box-shadow: 0 4px 10px rgba(109, 89, 219, 0.16);
+  box-shadow: 0 10px 18px rgba(107, 89, 220, 0.2);
 }
 
 .button-primary:hover {
   background: linear-gradient(135deg, #7362df, #5f4dce);
-  box-shadow: 0 6px 15px rgba(109, 89, 219, 0.23);
+  box-shadow: 0 12px 22px rgba(107, 89, 220, 0.27);
   transform: translateY(-1px);
 }
 
@@ -615,6 +615,7 @@ html[data-theme='dark'] .top-avatar {
   color: #575c74;
   background: #fff;
   border-color: #e5e7f0;
+  box-shadow: 0 8px 18px rgba(40, 46, 75, 0.03);
 }
 
 .button-secondary:hover {
@@ -644,16 +645,16 @@ html[data-theme='dark'] .top-avatar {
   min-height: 145px;
   padding: 18px 17px 16px;
   overflow: hidden;
-  background: var(--surface);
-  border: 1px solid #e9ebf3;
-  border-radius: 13px;
-  box-shadow: 0 3px 12px rgba(34, 39, 75, 0.018);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(249, 250, 255, 0.94));
+  border: 1px solid rgba(233, 235, 243, 0.9);
+  border-radius: 18px;
+  box-shadow: var(--card-shadow);
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
 .stat-card:hover {
   border-color: #dedaf8;
-  box-shadow: 0 8px 22px rgba(34, 39, 75, 0.055);
+  box-shadow: 0 20px 38px rgba(34, 39, 75, 0.1);
   transform: translateY(-2px);
 }
 
@@ -737,8 +738,8 @@ html[data-theme='dark'] .top-avatar {
 
 .balance-card {
   color: #fff;
-  background: linear-gradient(135deg, #fdfcff, #f7f5ff);
-  border-color: #e4defe;
+  background: linear-gradient(135deg, #f6f2ff 0%, #ffffff 52%, #f4f8ff 100%);
+  border-color: rgba(150, 132, 245, 0.25);
 }
 
 .balance-card .stat-top {
